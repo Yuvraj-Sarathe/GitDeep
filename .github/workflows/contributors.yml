@@ -81,4 +81,4 @@ jobs:
             --head contributors/update \
             --title "docs: update contributors" \
             --body "Automated contributor avatar refresh." \
-            2>/dev/null && echo "PR created" || echo "PR already exists — branch updated"
+            --fill 2>&1 || echo "PR create failed — check if PR already exists"
