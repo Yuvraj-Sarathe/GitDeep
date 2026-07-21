@@ -524,7 +524,6 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 <td align="center"><a href="https://github.com/PrathamReddy888"><img src="https://avatars.githubusercontent.com/u/219442049?s=80" width="80" style="border-radius:50%" alt="PrathamReddy888"><br><sub><b>PrathamReddy888</b></sub></a></td>
 <td align="center"><a href="https://github.com/karrisanthoshigayatri"><img src="https://avatars.githubusercontent.com/u/268634585?s=80" width="80" style="border-radius:50%" alt="karrisanthoshigayatri"><br><sub><b>karrisanthoshigayatri</b></sub></a></td>
 <td align="center"><a href="https://github.com/preranaanand07"><img src="https://avatars.githubusercontent.com/u/241425799?s=80" width="80" style="border-radius:50%" alt="preranaanand07"><br><sub><b>preranaanand07</b></sub></a></td>
-<td align="center"><a href="https://github.com/apps/github-actions"><img src="https://avatars.githubusercontent.com/u/41898282?s=80" width="80" style="border-radius:50%" alt="github-actions[bot]"><br><sub><b>github-actions[bot]</b></sub></a></td>
 </tr>
 </table>
 
