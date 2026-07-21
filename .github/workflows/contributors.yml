@@ -8,12 +8,22 @@ on:
 jobs:
   contributors:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - uses: BobAnkh/add-contributors@master
+      - uses: BobAnkh/add-contributors@v0.2.2
         with:
           REPO_NAME: Yuvraj-Sarathe/GitDeep
-          CONTRIBUTOR: all
+          CONTRIBUTOR: '## 👥 Contributors'
+          COLUMN_PER_ROW: '6'
           ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMG_WIDTH: '100'
+          FONT_SIZE: '14'
+          PATH: '/README.md'
+          COMMIT_MESSAGE: 'docs(README): update contributors list'
+          AVATAR_SHAPE: 'round'
