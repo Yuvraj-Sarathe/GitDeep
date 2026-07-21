@@ -17,19 +17,103 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Uses BobAnkh/add-contributors to update the contributor avatars in README.
-      # Instead of committing directly to main (which branch protection rules block),
-      # it creates a branch and opens a PR — the PR goes through the standard CI checks.
-      - uses: BobAnkh/add-contributors@v0.2.2
+      # Fetch contributors from GitHub API, generate avatar table, and update README
+      - name: Generate contributor avatars in README
+        id: contributors
+        uses: actions/github-script@v7
         with:
-          REPO_NAME: Yuvraj-Sarathe/GitDeep
-          CONTRIBUTOR: '## 👥 Contributors'
-          COLUMN_PER_ROW: '6'
-          ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          IMG_WIDTH: '100'
-          FONT_SIZE: '14'
-          PATH: '/README.md'
-          COMMIT_MESSAGE: 'docs(README): update contributors list'
-          AVATAR_SHAPE: 'round'
-          BRANCH: 'contributors/update'
-          PULL_REQUEST: 'main'
+          script: |
+            const fs = require('fs');
+            const MARKER = '## 👥 Contributors';
+            const NEXT_SECTION = '## 🙏 Acknowledgments';
+
+            // Fetch all contributors (paginated) from GitHub API
+            const contributors = await github.paginate(
+              github.rest.repos.listContributors,
+              { owner: context.repo.owner, repo: context.repo.repo, per_page: 100 }
+            );
+
+            // Filter out bot accounts (e.g. github-actions[bot])
+            const humans = contributors.filter(c => c.type !== 'Bot');
+
+            if (humans.length === 0) {
+              core.notice('No human contributors found — skipping update');
+              return 'no-change';
+            }
+
+            // Build avatar table (6 per row, matching BobAnkh style)
+            let rows = [];
+            let cells = [];
+            for (const c of humans) {
+              cells.push(
+                `<td align="center">` +
+                  `<a href="${c.html_url}">` +
+                    `<img src="https://avatars.githubusercontent.com/u/${c.id}?s=100" width="100" style="border-radius:50%" alt="${c.login}"/>` +
+                    `<br /><sub><b>${c.login}</b></sub>` +
+                  `</a>` +
+                `</td>`
+              );
+              if (cells.length === 6) {
+                rows.push(`<tr>\n${cells.join('\n')}\n</tr>`);
+                cells = [];
+              }
+            }
+            if (cells.length > 0) {
+              rows.push(`<tr>\n${cells.join('\n')}\n</tr>`);
+            }
+            const table = `<table>\n${rows.join('\n')}\n</table>`;
+
+            // Read current README
+            const readme = fs.readFileSync('README.md', 'utf8');
+            const start = readme.indexOf(MARKER);
+            if (start === -1) {
+              core.setFailed(`Could not find '${MARKER}' in README.md`);
+              return 'no-change';
+            }
+
+            // Find the boundary after the marker: skip the heading line, then
+            // replace everything up to (but not including) the next heading.
+            const afterHeading = readme.indexOf('\n', start) + 1;
+            const end = readme.indexOf(NEXT_SECTION, afterHeading);
+
+            const newReadme = readme.slice(0, afterHeading) + '\n' + table + '\n\n' + readme.slice(end);
+            fs.writeFileSync('README.md', newReadme);
+
+            // Check if the file actually changed
+            const { execSync } = require('child_process');
+            const diff = execSync('git diff --name-only').toString().trim();
+            if (!diff) {
+              core.notice('README.md unchanged — contributors list is already up to date');
+              return 'no-change';
+            }
+
+            return 'updated';
+
+      # Push changes to a branch and open a PR (bypasses branch protection on main)
+      - name: Create or update pull request
+        if: steps.contributors.outputs.result == 'updated'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="contributors/update"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Reset branch to current main HEAD, then commit the README change
+          git checkout -B "$BRANCH"
+          git add README.md
+          git commit -m "docs(README): update contributors list"
+          git push origin "$BRANCH" --force
+
+          # Create PR, or skip if one already exists from this branch
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --json number,url --jq '.[0].url' 2>/dev/null)
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR already exists: $EXISTING_PR — branch updated, PR will reflect changes automatically"
+          else
+            gh pr create \
+              --base main \
+              --head "$BRANCH" \
+              --title "docs(README): update contributors list" \
+              --body "Automated refresh of contributor avatars in the Contributors section."
+          fi
