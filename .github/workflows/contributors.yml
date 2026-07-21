@@ -17,8 +17,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # 1. Fetch all contributors from GitHub API (--paginate handles 202 retries)
+          #    Note: --paginate with --jq outputs one JSON object per line (NDJSON),
+          #    so we pipe through jq -s to slurp into a proper JSON array.
           gh api repos/${{ github.repository }}/contributors --paginate \
-            --jq '.[] | {login, url: .html_url, id}' > /tmp/contribs.json
+            --jq '.[] | {login, url: .html_url, id}' | jq -s '.' > /tmp/contribs.json
 
           # 2. Use Node.js to build the avatar table and update README
           node -e '
