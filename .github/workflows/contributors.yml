@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+      - docs/add-contributors-section
+  workflow_dispatch:
 
 jobs:
   contributors:
@@ -14,6 +16,6 @@ jobs:
 
       - uses: BobAnkh/add-contributors@master
         with:
-          REPO_NAME: Yuvraj-Sarathe/GitDeep
+          REPO_NAME: MILAN-123865/GitDeep
           CONTRIBUTOR: all
           ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
