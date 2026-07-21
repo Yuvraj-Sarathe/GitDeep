@@ -10,12 +10,16 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # Uses BobAnkh/add-contributors to update the contributor avatars in README.
+      # Instead of committing directly to main (which branch protection rules block),
+      # it creates a branch and opens a PR — the PR goes through the standard CI checks.
       - uses: BobAnkh/add-contributors@v0.2.2
         with:
           REPO_NAME: Yuvraj-Sarathe/GitDeep
@@ -27,3 +31,5 @@ jobs:
           PATH: '/README.md'
           COMMIT_MESSAGE: 'docs(README): update contributors list'
           AVATAR_SHAPE: 'round'
+          BRANCH: 'contributors/update'
+          PULL_REQUEST: 'main'
