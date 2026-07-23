@@ -29,7 +29,7 @@ GitDeep is a client-side web application using advanced AI models to evaluate Gi
 ### Prerequisites
 
 - Node.js 18+ and npm
-- An AI provider API key (Google Gemini recommended for free tier)
+- An AI provider API key (Google Gemini recommended for its free tier)
 
 ### Installation
 
