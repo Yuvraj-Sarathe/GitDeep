@@ -50,8 +50,8 @@ jobs:
 
           // Replace the section in README
           const readme = fs.readFileSync("README.md", "utf8");
-          const marker = "## 👥 Contributors";
-          const next = "## 🙏 Acknowledgments";
+          const marker = "## Contributors";
+          const next = "## Acknowledgments";
           const s = readme.indexOf(marker);
           const e = readme.indexOf(next, s);
 
