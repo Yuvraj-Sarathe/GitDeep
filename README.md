@@ -18,7 +18,7 @@ GitDeep is a client-side web application using advanced AI models to evaluate Gi
 
 - **Dual Assessment Modes**: Employer Mode (hirability analysis and scoring) and Developer Mode (mentorship and actionable guidance).
 - **Deep Analysis**: Career slope detection, buzzword vs reality verification, AI usage quality assessment, behavioral pattern detection, and per-repository scoring.
-- **Privacy-First Architecture**: 100% client-side execution. Zero server databases, no analytics, and API keys remain in your browser session.
+- **Privacy-Focused Architecture**: Session-based execution with zero server database storage, telemetry, or tracking. Gemini and Anthropic calls are executed directly client-side, while requests to Ollama and OpenAI-compatible providers pass through a stateless Next.js API proxy (`app/api/ai/route.ts`) to avoid CORS restrictions without persisting API keys or data.
 - **AI Provider Flexibility**: Supports 12+ cloud and local AI providers including Google Gemini, OpenAI, Anthropic, Groq, DeepSeek, OpenRouter, and local Ollama instances.
 - **Rich Visualizations**: Interactive radar charts, career timeline meters, language distributions, and comparative candidate analysis.
 
@@ -28,8 +28,8 @@ GitDeep is a client-side web application using advanced AI models to evaluate Gi
 
 ### Prerequisites
 
-- Node.js 18+ and npm
-- An AI provider API key (Google Gemini recommended for its free tier)
+- Node.js 18.18.0+ and npm
+- An AI provider API key (Google Gemini recommended for free tier)
 
 ### Installation
 
@@ -47,7 +47,7 @@ Access the local development server at [GitDeep Local Host](http://localhost:300
 1. Visit [Google AI Studio API Key Setup](https://aistudio.google.com/) to obtain a free API key.
 2. Open GitDeep Settings (gear icon in the navigation bar).
 3. Select your AI Provider (e.g., Gemini API), enter your key, and select your target model.
-4. (Optional) Provide a GitHub Personal Access Token (PAT) under Settings to increase GitHub API rate limits and include private repository metadata.
+4. (Optional) Provide a GitHub Personal Access Token (PAT) under Settings to increase GitHub API rate limits (from 60 to 5,000 requests/hour).
 
 ---
 
@@ -82,11 +82,11 @@ Open the application at [GitDeep Local Host Container](http://localhost:3000).
 
 ## Architecture & How It Works
 
-GitDeep operates entirely in the browser using Next.js 15, TypeScript, Tailwind CSS, and Octokit:
+GitDeep uses Next.js 15, TypeScript, Tailwind CSS, and Octokit:
 
-1. **Data Collection**: Fetches profile data, repository metadata, READMEs, and merged PRs via GitHub API.
-2. **AI Processing**: Constructs structured prompt context and sends request directly to the chosen AI provider API.
-3. **Visualization**: Formats results into hirability scores, SWOT matrices, radar charts, and mentorship steps.
+1. **Data Collection**: Client fetches public profile data, non-fork repository metadata, README snippets, and merged PRs via the GitHub REST API.
+2. **AI Processing**: Gemini and Anthropic requests are called directly from the browser; Ollama and OpenAI-compatible requests are proxied via the Next.js API route (`app/api/ai/route.ts`) to manage headers and avoid CORS issues.
+3. **Visualization**: Formats structured JSON responses into hirability scores, SWOT matrices, radar charts, and mentorship steps.
 
 For a full technical overview and directory layout, see [Architecture Documentation](docs/ARCHITECTURE.md).
 

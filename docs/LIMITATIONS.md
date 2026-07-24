@@ -21,8 +21,8 @@ This document outlines current technical limitations and planned feature improve
 - **Language Detection**: Dependent on GitHub linguistic statistics; vendor scripts can skew data.
 
 ### Storage & Session Scope
-- Assessed profiles stored in browser session storage (~5MB limit).
-- Clearing browser cache removes saved candidate history.
+- Assessed candidate profiles are saved in browser `sessionStorage` (~5MB limit).
+- **Session Lifecycle**: `sessionStorage` is strictly tied to the open browser tab session. Closing the tab or window clears saved candidate history immediately.
 
 ---
 

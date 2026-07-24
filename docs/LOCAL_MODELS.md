@@ -39,7 +39,9 @@ Keep this terminal running while using GitDeep.
 
 1. Click the Settings gear icon in GitDeep.
 2. Set AI Provider to **Local Ollama**.
-3. Endpoint: `http://localhost:11434`
+3. Endpoint:
+   - **For local GitDeep deployments** (`npm run dev` or Docker): Use `http://localhost:11434`.
+   - **For hosted deployments** (e.g. Vercel): Requests pass through the hosted server proxy. To connect your local Ollama instance to a hosted GitDeep app, expose Ollama via a tunnel (e.g. `ngrok http 11434` or Cloudflare Tunnel) and set your public tunnel URL as the Endpoint.
 4. Model: `qwen2.5:7b` (or your chosen model)
 5. Prompt Size: **Full** (for 7B+ models) or **Small** (for <7B models)
 
@@ -83,9 +85,9 @@ Contributed by [karrisanthoshigayatri GitHub Profile](https://github.com/karrisa
 
 ### How GitDeep Connects to Ollama
 
-GitDeep uses a two-stage connection strategy in `app/api/ai/route.ts`:
-1. **Primary**: OpenAI-compatible endpoint (`/v1/chat/completions`) for Ollama v0.2+.
-2. **Fallback**: Retries via native `/api/generate` with forced `format: 'json'`.
+GitDeep executes requests via a Next.js API proxy (`app/api/ai/route.ts`) using a two-stage fallback connection strategy:
+1. **Primary**: Sends a POST request to Ollama's OpenAI-compatible endpoint (`${endpoint}/v1/chat/completions`).
+2. **Fallback**: If the primary request fails or times out, retries via Ollama's native generation endpoint (`${endpoint}/api/generate`) with `format: 'json'` and `options: { temperature: 0, num_ctx: 32768 }`.
 
 ### Prompt Size Impact
 

@@ -26,7 +26,7 @@ GitDeep/
 │   ├── help/page.tsx         # Help & documentation page
 │   ├── layout.tsx            # Root layout with navigation & footer
 │   ├── globals.css           # Global styles & Tailwind definitions
-│   └── api/ai/route.ts       # Server-side proxy for Ollama / OpenAI endpoints
+│   └── api/ai/route.ts       # Stateless Next.js API route proxy for Ollama / OpenAI-compatible requests
 ├── components/
 │   └── SettingsModal.tsx     # Configuration modal (API keys, models)
 ├── lib/
@@ -42,12 +42,13 @@ GitDeep/
 
 ---
 
-## Data Flow Pipeline
+## Data Flow & Request Boundaries
 
-1. **User Input**: User submits a GitHub username on the landing page (`app/page.tsx`).
-2. **Navigation**: User is redirected to `/assessment?user=<username>&mode=<employer|developer>`.
-3. **GitHub Data Fetching**: `fetchGitHubProfile()` in `lib/github.ts` collects user bio, public repos, README snippets, commit patterns, and merged PRs.
-4. **AI Generation**: `generateAssessment()` in `lib/ai.ts` compiles prompt instructions and sends data to the configured AI provider.
-5. **Parsing & Normalization**: Output is parsed into a structured `AssessmentResult` object.
-6. **Rendering**: Results page (`app/assessment/page.tsx`) displays metrics, SWOT analysis, radar charts, and mentorship advice.
-7. **Session Storage**: Candidate results are saved in session storage for candidate comparison features.
+1. **User Input & Navigation**: User submits a GitHub username on `app/page.tsx` and is redirected to `/assessment?user=<username>&mode=<employer|developer>`.
+2. **GitHub Data Fetching**: `fetchGitHubProfile()` in `lib/github.ts` fetches public profile data, top non-fork repositories, README snippets, and merged PRs via the GitHub REST API.
+3. **AI Execution Path**:
+   - **Direct Client-Side**: Calls to **Google Gemini** (`@google/genai`) and **Anthropic** execute directly from the user's browser.
+   - **Server Proxy Handler (`app/api/ai/route.ts`)**: Calls to **Ollama** and **OpenAI-compatible** endpoints are proxied through a stateless Next.js API route to bypass browser CORS restrictions and forward request headers securely.
+   - **Deployment Limitation for Ollama**: When GitDeep is deployed on hosted cloud platforms (e.g. Vercel), server-side route requests targeting `http://localhost:11434` execute on the host server rather than the user's local machine. For hosted deployments, local Ollama users must run GitDeep locally (`npm run dev` / Docker) or provide a publicly accessible tunnel URL (e.g. via ngrok or Cloudflare Tunnel).
+4. **Parsing & Normalization**: AI JSON responses are parsed and normalized into a standard `AssessmentResult` structure.
+5. **Rendering & Session Storage**: Results are displayed dynamically with Recharts and saved to tab-scoped `sessionStorage` for candidate comparisons.
