@@ -55,6 +55,11 @@ jobs:
           const s = readme.indexOf(marker);
           const e = readme.indexOf(next, s);
 
+          if (s === -1 || e === -1 || e <= s) {
+            console.error("Could not find README section markers");
+            process.exit(1);
+          }
+
           if (s === -1 || e === -1) {
             console.error("Could not find section markers in README:", { marker, next, s, e });
             process.exit(1);
