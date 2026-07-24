@@ -41,7 +41,7 @@ Keep this terminal running while using GitDeep.
 2. Set AI Provider to **Local Ollama**.
 3. Endpoint:
    - **For local GitDeep deployments** (`npm run dev` or Docker): Use `http://localhost:11434`.
-   - **For hosted deployments** (e.g. Vercel): Requests pass through the hosted server proxy. To connect your local Ollama instance to a hosted GitDeep app, expose Ollama via a tunnel (e.g. `ngrok http 11434` or Cloudflare Tunnel) and set your public tunnel URL as the Endpoint.
+   - **For hosted deployments** (e.g. Vercel): Requests pass through the hosted server proxy. To use local Ollama with a hosted app, running GitDeep locally is recommended. If exposing Ollama via a tunnel (e.g. ngrok or Cloudflare Tunnel), **ensure strict access control** (such as HTTP Basic Auth, IP allowlists, or Cloudflare Access). *Warning: Ollama's local API has no built-in authentication — exposing it without access control allows unauthorized remote execution.*
 4. Model: `qwen2.5:7b` (or your chosen model)
 5. Prompt Size: **Full** (for 7B+ models) or **Small** (for <7B models)
 
