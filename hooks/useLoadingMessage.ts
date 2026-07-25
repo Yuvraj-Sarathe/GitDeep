@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 /**
  * The canonical list of fun "AI is running..." one-liners.
@@ -73,13 +73,15 @@ export function useLoadingMessage(
   messages: readonly string[] = DEFAULT_LOADING_MESSAGES,
   intervalMs = 2200,
 ): string {
-  const [index, setIndex] = useState(0);
   const shuffled = useMemo(() => shuffle(messages), [messages]);
+  const [index, setIndex] = useState(0);
+  const [prevShuffled, setPrevShuffled] = useState(shuffled);
 
-  // Reset index when the message set changes.
-  useEffect(() => {
-    setIndex(0);
-  }, [shuffled]);
+  // Reset index when the message set changes (derived state, no effect needed).
+  if (shuffled !== prevShuffled) {
+    setPrevShuffled(shuffled);
+    if (index !== 0) setIndex(0);
+  }
 
   // Handle the rotation interval.
   useEffect(() => {
