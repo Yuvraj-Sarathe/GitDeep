@@ -364,16 +364,15 @@ ${userJson}
 
 ---
 
-## CONTEXT-AWARE DEVELOPER STAGE ASSESSMENT (READ FIRST — THIS CHANGES HOW YOU EVALUATE)
+## CONTEXT-AWARE DEVELOPER STAGE ASSESSMENT (STRICT MODE)
 
-Before scoring anything, infer the developer's career stage from their account age, bio, and activity:
+Before scoring anything, infer the developer's career stage from their account age, bio, and activity. However, you MUST hold everyone to a high standard.
+- **First-year student / Beginner:** Basic CRUD apps are expected, but penalize heavily for pure forks/copies, no READMEs, and spaghetti code. Do not give out high scores just for trying. 
+- **Student (1–3 year account):** Penalize severely for tutorial clones, lack of deployment, and stagnant tech stacks.
+- **Final-year student / Senior student:** Must show deployed projects and architectural thinking. If it's just index.js and style.css, mark them as unhirable for anything beyond absolute entry-level.
+- **Professional / Working developer:** Evaluated against elite professional standards — zero lenience. Missing tests, poor docs, or stale repos drop the score massively.
 
-- **First-year student / Beginner (<1 year account, <10 repos):** Evaluate against beginner standards. Basic CRUD apps, tutorial repos, and small scripts are EXPECTED. Do not penalize for lack of architecture. Penalize for: zero original work (pure forks/copies), no README on any repo, no signs of curiosity or growth. Be encouraging in developer mode, but still honest.
-- **Student (1–3 year account, still learning):** Expect some original projects, at least one decent README, some exploration beyond tutorials. Penalize for: still doing only tutorial clones, zero deployment attempts, stagnant language stack.
-- **Final-year student / Senior student (3–5 year account with student signals):** Must show: at least one deployed project, some evidence of architecture thinking (not just index.js and style.css), meaningful README on their flagship repo, and at least one external contribution or real-world project attempt.
-- **Professional / Working developer (5+ year account, or company in bio, or references to real jobs):** Evaluated against full professional standards — no lenience. Expect consistent activity, external PRs, production-grade repos, and strong documentation.
-
-**CRITICAL:** This context-aware lenience applies ONLY to the detailedReport, summary, tags, slopeAnalysis, metrics, weaknessMetrics, repoAssessments, and growthMeter. It does NOT apply to hirabilityScore, hirabilityRoles, or notSuitedRoles. Hiring is about job standards, not the developer's current life stage. A first-year student can still be assessed for an internship at the same threshold as anyone else — the bar for that internship doesn't lower because they're a student.
+**CRITICAL:** Hiring is about job standards, not the developer's current life stage. The bar does not lower because they are a student. Be ruthless in your assessment of actual code quality.
 
 ---
 
@@ -405,15 +404,13 @@ Before scoring anything, infer the developer's career stage from their account a
 
 12. **Hirability — DO NOT SOFTEN THIS:**
     - Expand criteria to differentiate internship vs full-time vs senior roles.
-    - **DO NOT hesitate to mark someone as unsuitable for a role.** If they are not hire-ready, say so clearly in notSuitedRoles. "Junior Frontend Intern" should not appear in hirabilityRoles for a developer with no original work, no READMEs, and no consistency.
-    - The hirability score must reflect real-world hiring standards. A score of 4 means "not hireable right now by most companies." Call it. A score of 2 means "significant work needed before applying anywhere." Say that.
+    - **DO NOT hesitate to mark someone as unsuitable for a role.** If they are not hire-ready, say so clearly in notSuitedRoles. 
+    - The hirability score must reflect elite real-world hiring standards. A score of 4 means "not hireable right now." Call it out. Be extremely critical of poor code structure and lack of tests.
 
-13. **Tone — BE HUMAN, NOT A PRESS RELEASE:**
-    - Write like a brutally honest senior engineer reviewing a resume, not like an AI trying to be nice.
-    - If the profile is weak, say it's weak. Don't hide behind phrases like "shows potential" unless they genuinely do.
-    - If the profile is strong, say so clearly without over-celebrating.
-    - Avoid filler sentences like "Overall, this developer shows promise." Either they do or they don't — be specific.
-    - Nuance is allowed: if something looks bad on the surface but is actually impressive when understood (e.g. AI orchestration producing production-grade output), use ***bold italic*** to flag this explicitly.
+13. **Tone — BE BRUTALLY HONEST, NOT A PRESS RELEASE:**
+    - Write like a highly critical senior engineer reviewing a resume. Do not be artificially nice.
+    - If the profile is weak, say it's weak. Do not hide behind phrases like "shows potential" unless they genuinely are a rising star.
+    - Be professional, but do not sugarcoat deficiencies. Blunt and direct is the goal.
 
 14. **STRUCTURED REPORT FORMAT:**
     - Use ## for major sections, ### for sub-topics.
@@ -432,9 +429,8 @@ Before scoring anything, infer the developer's career stage from their account a
 
 16. **SCORE STABILITY — FIXED 3-TIER BAND SYSTEM:**
     - Determine tier first from 3 hard signals: (a) merged PRs in external repos, (b) original non-fork repos with READMEs, (c) 6+ months of consistent activity.
-    - 0/3 signals = Tier 1 (score 1–4). 1/3 = Tier 2 (5–6.9 or 7.1). 2–3/3 = Tier 3 (7.1–10).
-    - Fine-tune ±0.5 within the band for quality factors.
-    - **7.0 is banned** everywhere. Use 6.9 or 7.1. This applies to every numeric field.
+    - 0/3 signals = Tier 1 (score 1–4). 1/3 = Tier 2 (4–6). 2–3/3 = Tier 3 (8–10).
+    - **THE SCORE 7 (7.0, 7.1, 7.5, 7.9) IS STRICTLY BANNED.** Do not give out any 7s. If they are mediocre, they get a 5 or 6. If they are great, they get an 8+. Force a strong opinion.
     - Maximum deviation between two assessments of the same profile: ±1.0.
 
 17. **MODE PARITY:** hirabilityScore, metrics, weaknessMetrics, swot, tags, slopeAnalysis, buzzwordAnalysis, behavioralAnalysis, growthMeter, timeline, summary, detailedReport, and repoAssessments must be IDENTICAL between modes. The mode ONLY controls whether mentorshipPlan is populated.
@@ -481,24 +477,24 @@ function buildSmallPrompt(data: UserAssessmentData, mode: AssessmentMode, custom
   let prompt = `Analyze this GitHub profile:
 ${userJson}
 
-STAGE CONTEXT: Infer the developer's stage (beginner/student/senior student/professional) from account age and activity. Apply lenience to code quality evaluation only. Hirability scoring uses professional standards regardless of stage.
+STAGE CONTEXT: Infer the developer's stage from account age. Hold everyone to a highly critical professional standard. No free passes for being a student.
 
 RULES:
-1. Slope: Rising Star, Steady, Declining, or Sporadic? Assess burnout risk.
-2. Buzzword vs Reality: Compare bio claims against actual language usage. Call out mismatches directly — no softening.
-3. Arrogance vs Confidence: Flag toxic patterns honestly.
-4. AI Usage: Detect slop OR quality orchestration. Call out superior orchestration as a strength.
-5. Missing docs: Flag repos without READMEs by name.
+1. Slope: Rising Star, Steady, Declining, or Sporadic?
+2. Buzzword vs Reality: Call out mismatches directly. 
+3. Arrogance vs Confidence: Flag toxic patterns.
+4. AI Usage: Detect slop OR quality orchestration.
+5. Missing docs: Flag repos without READMEs by name. Penalize severely.
 6. Security mentions.
-7. Credit genuinely novel ideas — not mediocre work dressed up as clever.
+7. Credit genuinely novel ideas — not mediocre work.
 8. Evaluate merged PRs heavily. Zero external PRs = unproven.
-9. Tags: Accurate archetype labels. "Tutorial Cloner" is valid.
-10. SWOT: 2–3 bullets each, never empty. Opportunities = external market fit.
-11. Timeline phases from account creation. growthMeter reflects actual trajectory, not potential.
-12. Hirability: Use real hiring standards. Do not soften. A developer who is not hire-ready gets marked as such in notSuitedRoles. Be explicit.
-13. Scores 1.0–10.0. 7.0 is BANNED everywhere. Use 6.9 or 7.1. Tiers: 1–4 WEAK (0/3 hard signals), 5–6.9/7.1 AVERAGE (1/3), 7.1–10 STRONG (2–3/3). Hard signals: external merged PRs, original repos with READMEs, 6+ months consistent activity.
-14. Per-repo: Score 1–10, verdict, 1–2 sentence analysis. Stage-aware for quality, not for hirability.
-15. Tone: Write like a blunt senior engineer, not a supportive chatbot. If it's weak, say it's weak.
+9. Tags: Accurate archetype labels.
+10. SWOT: 2–3 bullets each, never empty.
+11. Timeline phases from account creation.
+12. Hirability: Brutally honest. If not hire-ready, say so clearly.
+13. Scores 1.0–10.0. **THE SCORE 7 IS COMPLETELY BANNED (no 7.0, 7.5, etc).** Force a strong opinion (6 or lower for mediocre, 8+ for strong).
+14. Per-repo: Score 1–10, verdict, 1–2 sentence analysis. Be highly critical.
+15. Tone: Write like a highly critical senior engineer. No sugarcoating.
 
 Mode: ${mode === 'employer' ? 'Brutally honest. No improvement tips. If unsuitable, say so clearly.' : 'Blunt mentor. Same scores. Add mentorshipPlan with SPECIFIC language suggestions, concrete project ideas for this developer\'s actual gaps, and direct feedback on their writing/tone — not generic advice.'}
 ${customQuestions ? `Custom Q: "${customQuestions}"` : ''}
