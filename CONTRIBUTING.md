@@ -19,7 +19,7 @@ First off, thanks for wanting to contribute. GitDeep is an active project, and e
 
 ### Prerequisites
 
-- **Node.js** 18+ (use [nvm](https://github.com/nvm-sh/nvm) or [fnm](https://github.com/Schniz/fnm) to manage versions)
+- **Node.js** 18.18.0+ (use [nvm](https://github.com/nvm-sh/nvm) or [fnm](https://github.com/Schniz/fnm) to manage versions)
 - **npm** (ships with Node.js)
 - A GitHub account (for contributing, testing with real profiles)
 - An AI provider API key (Gemini recommended — free tier available)
