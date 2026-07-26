@@ -75,13 +75,11 @@ export function useLoadingMessage(
 ): string {
   const shuffled = useMemo(() => shuffle(messages), [messages]);
   const [index, setIndex] = useState(0);
-  const [prevShuffled, setPrevShuffled] = useState(shuffled);
 
-  // Reset index when the message set changes (derived state, no effect needed).
-  if (shuffled !== prevShuffled) {
-    setPrevShuffled(shuffled);
-    if (index !== 0) setIndex(0);
-  }
+  // Reset index when the message set changes.
+  useEffect(() => {
+    setIndex(0);
+  }, [shuffled]);
 
   // Handle the rotation interval.
   useEffect(() => {

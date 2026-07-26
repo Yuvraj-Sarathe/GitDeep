@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, Suspense, useRef } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { fetchGitHubProfile, UserAssessmentData } from '@/lib/github';
 import { generateAssessment, AssessmentMode, AssessmentResult, compareCandidates, ComparisonCandidate, ComparisonResult } from '@/lib/ai';
@@ -34,34 +34,27 @@ function AssessmentContent() {
   const [newCompareUser, setNewCompareUser] = useState('');
   const [addingToCompare, setAddingToCompare] = useState(false);
   const [showCompletenessWarning, setShowCompletenessWarning] = useState(false);
-  const prevAssessmentRef = useRef<AssessmentResult | null>(null);
-  const prevGithubDataRef = useRef<UserAssessmentData | null>(null);
 
-  // Derive showCompletenessWarning during render (not in an effect) to avoid
-  // ESLint react-hooks/set-state-in-effect.
-  if (assessment && assessment !== prevAssessmentRef.current) {
-    prevAssessmentRef.current = assessment;
+  useEffect(() => {
+    if (!assessment) return;
     const hasMissing = !assessment.summary || assessment.summary.length < 20 ||
       !assessment.detailedReport || assessment.detailedReport.length < 200 ||
       !assessment.repoAssessments || assessment.repoAssessments.length === 0 ||
       !assessment.timeline || assessment.timeline.length === 0 ||
       !assessment.swot.strengths || assessment.swot.strengths.length === 0;
-    if (hasMissing !== showCompletenessWarning) setShowCompletenessWarning(hasMissing);
-  }
+    setShowCompletenessWarning(hasMissing);
+  }, [assessment]);
 
-  // Derive savedCandidates during render (not in an effect).
-  if (assessment && githubData && (assessment !== prevAssessmentRef.current || githubData !== prevGithubDataRef.current)) {
-    prevGithubDataRef.current = githubData;
+  useEffect(() => {
+    if (!assessment || !githubData) return;
     const stored: ComparisonCandidate[] = JSON.parse(sessionStorage.getItem('assessedCandidates') || '[]');
     const entry: ComparisonCandidate = { username: githubData.username, avatarUrl: githubData.avatarUrl, assessment };
     const idx = stored.findIndex((c: ComparisonCandidate) => c.username === githubData.username);
     if (idx >= 0) stored[idx] = entry;
     else stored.push(entry);
     try { sessionStorage.setItem('assessedCandidates', JSON.stringify(stored)); } catch {}
-    if (stored.length !== savedCandidates.length || stored.some((c, i) => c.username !== savedCandidates[i]?.username)) {
-      setSavedCandidates(stored);
-    }
-  }
+    setSavedCandidates(stored);
+  }, [assessment, githubData]);
 
   useEffect(() => {
     if (!username) return;
