@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 /**
  * The canonical list of fun "AI is running..." one-liners.
@@ -73,24 +73,19 @@ export function useLoadingMessage(
   messages: readonly string[] = DEFAULT_LOADING_MESSAGES,
   intervalMs = 2200,
 ): string {
-  const [index, setIndex] = useState(0);
-  const shuffled = useMemo(() => shuffle(messages), [messages]);
+  const shuffledOnMount = useMemo(() => shuffle(messages), [messages]);
+  const [state, setState] = useState({ list: shuffledOnMount, idx: 0 });
 
-  // Reset index when the message set changes.
   useEffect(() => {
-    setIndex(0);
-  }, [shuffled]);
-
-  // Handle the rotation interval.
-  useEffect(() => {
-    if (shuffled.length <= 1) return; // nothing to cycle.
-
-    const id = setInterval(() => {
-      setIndex((prev) => (prev + 1) % shuffled.length);
-    }, intervalMs);
-
+    if (shuffledOnMount.length <= 1) return;
+    const id = setInterval(
+      () => setState((s) => ({ list: s.list, idx: (s.idx + 1) % s.list.length })),
+      intervalMs,
+    );
     return () => clearInterval(id);
-  }, [shuffled, intervalMs]);
+  }, [shuffledOnMount, intervalMs]);
 
-  return shuffled[index] ?? shuffled[0] ?? "";
+  const list = state.list === shuffledOnMount ? state.list : shuffledOnMount;
+  const idx = state.list === shuffledOnMount ? state.idx : 0;
+  return list[idx] ?? list[0] ?? "";
 }
