@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, Suspense } from 'react';
+import React, { useEffect, useState, Suspense, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { fetchGitHubProfile, UserAssessmentData } from '@/lib/github';
 import { generateAssessment, AssessmentMode, AssessmentResult, compareCandidates, ComparisonCandidate, ComparisonResult } from '@/lib/ai';
@@ -33,28 +33,15 @@ function AssessmentContent() {
   const [compareQuestion, setCompareQuestion] = useState('');
   const [newCompareUser, setNewCompareUser] = useState('');
   const [addingToCompare, setAddingToCompare] = useState(false);
-  const [showCompletenessWarning, setShowCompletenessWarning] = useState(false);
-
-  useEffect(() => {
-    if (!assessment) return;
-    const hasMissing = !assessment.summary || assessment.summary.length < 20 ||
+  const [dismissedWarning, setDismissedWarning] = useState(false);
+  const showCompletenessWarning = useMemo(() => {
+    if (!assessment || dismissedWarning) return false;
+    return !assessment.summary || assessment.summary.length < 20 ||
       !assessment.detailedReport || assessment.detailedReport.length < 200 ||
       !assessment.repoAssessments || assessment.repoAssessments.length === 0 ||
       !assessment.timeline || assessment.timeline.length === 0 ||
       !assessment.swot.strengths || assessment.swot.strengths.length === 0;
-    setShowCompletenessWarning(hasMissing);
-  }, [assessment]);
-
-  useEffect(() => {
-    if (!assessment || !githubData) return;
-    const stored: ComparisonCandidate[] = JSON.parse(sessionStorage.getItem('assessedCandidates') || '[]');
-    const entry: ComparisonCandidate = { username: githubData.username, avatarUrl: githubData.avatarUrl, assessment };
-    const idx = stored.findIndex((c: ComparisonCandidate) => c.username === githubData.username);
-    if (idx >= 0) stored[idx] = entry;
-    else stored.push(entry);
-    try { sessionStorage.setItem('assessedCandidates', JSON.stringify(stored)); } catch {}
-    setSavedCandidates(stored);
-  }, [assessment, githubData]);
+  }, [assessment, dismissedWarning]);
 
   useEffect(() => {
     if (!username) return;
@@ -68,6 +55,13 @@ function AssessmentContent() {
 
         const aiResponse = await generateAssessment(ghData, settings, mode);
         setAssessment(aiResponse);
+
+        const stored: ComparisonCandidate[] = JSON.parse(sessionStorage.getItem('assessedCandidates') || '[]');
+        const entry: ComparisonCandidate = { username: ghData.username, avatarUrl: ghData.avatarUrl, assessment: aiResponse };
+        const idx = stored.findIndex((c: ComparisonCandidate) => c.username === ghData.username);
+        if (idx >= 0) stored[idx] = entry; else stored.push(entry);
+        try { sessionStorage.setItem('assessedCandidates', JSON.stringify(stored)); } catch {}
+        setSavedCandidates(stored);
         
       } catch (err: any) {
         console.error(err);
@@ -345,7 +339,7 @@ function AssessmentContent() {
                 <p className="text-xs text-[#C9D1D9] mt-1">For best results, use Gemini 2.5 Flash (1M context) or a model with 32K+ context and high token output limits. <a href="/settings" className="text-[#58A6FF] hover:underline">Adjust settings</a></p>
               </div>
             </div>
-            <button onClick={() => setShowCompletenessWarning(false)} className="p-1 hover:bg-[#E3B341]/20 rounded transition-colors text-[#E3B341]/60 hover:text-[#E3B341]" aria-label="Dismiss warning">
+            <button onClick={() => setDismissedWarning(true)} className="p-1 hover:bg-[#E3B341]/20 rounded transition-colors text-[#E3B341]/60 hover:text-[#E3B341]" aria-label="Dismiss warning">
               <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>

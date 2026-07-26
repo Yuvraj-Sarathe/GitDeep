@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { AI_PROVIDERS, AIProvider, PromptSize } from '@/lib/types';
@@ -10,11 +10,6 @@ export default function SettingsPage() {
   const router = useRouter();
   const { settings, updateSettings } = useStore();
   const [localSettings, setLocalSettings] = useState(settings);
-
-  // Sync localSettings when the store settings object is replaced externally.
-  useEffect(() => {
-    setLocalSettings(settings);
-  }, [settings]);
 
   const handleProviderChange = (providerId: AIProvider) => {
     const info = AI_PROVIDERS.find(p => p.id === providerId);
