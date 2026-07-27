@@ -303,7 +303,7 @@ function AssessmentContent() {
   ];
 
   return (
-    <div className="h-dvh flex flex-col bg-[#0D1117]">
+    <div className="min-h-dvh lg:h-dvh flex flex-col bg-[#0D1117]">
       <header className="bg-[#161B22] border-b border-[#30363D] shrink-0 z-40 shadow-md">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -346,10 +346,10 @@ function AssessmentContent() {
         </div>
       )}
 
-      <main className="flex-1 overflow-hidden max-w-7xl mx-auto w-full px-4 py-8 grid grid-cols-1 lg:grid-cols-12 gap-6 relative">
+      <main className="flex-1 lg:overflow-hidden max-w-7xl mx-auto w-full px-4 py-6 md:py-8 grid grid-cols-1 lg:grid-cols-12 gap-6 relative">
         
         {/* Left Sidebar: Profile & Hirability */}
-        <aside className="lg:col-span-3 flex flex-col gap-6 overflow-y-auto overscroll-behavior-contain">
+        <aside className="lg:col-span-3 flex flex-col gap-6 lg:overflow-y-auto lg:min-h-0 overscroll-behavior-contain">
           <div className="bg-[#161B22] border border-[#30363D] rounded-xl p-6 shadow-xl relative overflow-hidden group hover:border-[#8B949E] transition-colors">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#2EA043] via-[#58A6FF] to-[#8957E5]"></div>
             
@@ -468,7 +468,7 @@ function AssessmentContent() {
         </aside>
 
         {/* Center Main: Detailed Report & SWOT */}
-        <section className="lg:col-span-6 space-y-6 overflow-y-auto overscroll-behavior-contain">
+        <section className="lg:col-span-6 space-y-6 lg:overflow-y-auto lg:min-h-0 overscroll-behavior-contain">
           <div className="bg-[#161B22] border border-[#30363D] rounded-xl p-6 shadow-2xl">
             <h2 className="text-lg font-bold text-white mb-2 font-mono uppercase tracking-widest"><Zap className="inline w-5 h-5 text-[#E3B341] pb-1" aria-hidden="true"/> Executive Summary</h2>
             <p className="text-[#C9D1D9] text-sm leading-relaxed mb-6">{assessment.summary}</p>
@@ -645,7 +645,7 @@ function AssessmentContent() {
             </div>
           )}
 
-          <div className="bg-[#161B22] border border-[#30363D] rounded-xl flex flex-col shadow-2xl overflow-hidden h-full md:min-h-[800px]">
+          <div className="bg-[#161B22] border border-[#30363D] rounded-xl flex flex-col shadow-2xl overflow-hidden min-h-[400px] lg:h-full lg:min-h-[800px]">
             <div className="p-4 border-b border-[#30363D] bg-[#21262D] sticky top-0 z-10 flex items-center justify-between">
               <h2 className="text-sm font-bold text-white uppercase tracking-widest font-mono">
                 Detailed Assessment Output
@@ -676,7 +676,7 @@ function AssessmentContent() {
         </section>
 
         {/* Right Sidebar: Radars & Langs & Ask */}
-        <aside className="lg:col-span-3 space-y-6 overflow-y-auto overscroll-behavior-contain">
+        <aside className="lg:col-span-3 space-y-6 lg:overflow-y-auto lg:min-h-0 overscroll-behavior-contain pb-6 lg:pb-0">
           <div className="bg-[#161B22] border border-[#30363D] rounded-xl p-4 shadow-lg text-center">
             <h3 className="font-bold text-white text-xs uppercase mb-1 tracking-widest"><Shield className="w-4 h-4 inline pb-0.5 text-[#2EA043]" aria-hidden="true"/> Core Competencies</h3>
             <p className="text-[10px] text-[#8B949E] mb-2">Capabilities based on profile</p>
