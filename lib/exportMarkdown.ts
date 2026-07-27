@@ -43,7 +43,9 @@ function normalizeToTen(score: number): number {
 }
 
 function formatAccountAge(createdAt: string): string {
-  const years = Math.max(0, new Date().getFullYear() - new Date(createdAt).getFullYear());
+  const created = new Date(createdAt);
+  if (Number.isNaN(created.getTime())) return 'Unknown';
+  const years = Math.max(0, new Date().getFullYear() - created.getFullYear());
   return `${years} year${years === 1 ? '' : 's'}`;
 }
 
