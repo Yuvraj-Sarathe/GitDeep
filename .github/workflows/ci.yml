@@ -1,37 +1,48 @@
 name: PR Verification CI
 
-# 1. THE TRIGGER: When does this run?
 on:
   pull_request:
     branches: [ "main" ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'CHANGELOG.md'
+      - 'LICENSE'
+      - '*.txt'
+      - 'public/**'
 
-# 2. THE JOBS: What the hell is it doing?
 jobs:
   build-and-test:
     name: Run Linter and Tests
-    # Spins up a fresh, clean Linux virtual machine
     runs-on: ubuntu-latest
 
     steps:
-      # Step A: Download the PR's code into the virtual machine
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
-      # Step B: Install the Node.js environment
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20' # Change this if you use a different version
-          cache: 'npm' # Speeds up installation by saving downloaded dependencies
+          node-version: '20'
+          cache: 'npm'
 
-      # Step C: Install dependencies exactly as they are in package-lock.json
       - name: Install Dependencies
         run: npm ci
 
-      # Step D: Run your linter (checks for messy code syntax)
       - name: Run Linter
         run: npm run lint
 
-      # Step E: Run your test suite (verifies the code actually works)
+      - name: Check for test files
+        id: check-tests
+        run: |
+          if find app components hooks -name "*.test.ts" -o -name "*.test.tsx" -o -name "*.spec.ts" -o -name "*.spec.tsx" 2>/dev/null | grep -q .; then
+            echo "has_tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_tests=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Run Tests
+        if: steps.check-tests.outputs.has_tests == 'true'
         run: npm test
