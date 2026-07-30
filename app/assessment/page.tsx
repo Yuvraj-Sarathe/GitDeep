@@ -4,9 +4,10 @@ import React, { useEffect, useState, Suspense, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { fetchGitHubProfile, UserAssessmentData } from '@/lib/github';
 import { generateAssessment, AssessmentMode, AssessmentResult, compareCandidates, ComparisonCandidate, ComparisonResult } from '@/lib/ai';
+import { assessmentToMarkdown, buildExportFilename, downloadMarkdown } from '@/lib/exportMarkdown';
 import { useStore } from '@/lib/store';
 import { SettingsModal } from '@/components/SettingsModal';
-import { ArrowLeft, Loader2, Send, Linkedin, Twitter, Target, Zap, Shield, AlertTriangle, Code2, Instagram, ExternalLink, GitCompare, X, Check, HelpCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, Send, Linkedin, Twitter, Target, Zap, Shield, AlertTriangle, Code2, Instagram, ExternalLink, GitCompare, Download, X, Check, HelpCircle } from 'lucide-react';
 import { AiLoadingNote } from '@/components/AiLoadingNote';
 import ReactMarkdown from 'react-markdown';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend } from 'recharts';
@@ -34,6 +35,7 @@ function AssessmentContent() {
   const [newCompareUser, setNewCompareUser] = useState('');
   const [addingToCompare, setAddingToCompare] = useState(false);
   const [dismissedWarning, setDismissedWarning] = useState(false);
+  const [exported, setExported] = useState(false);
   const showCompletenessWarning = useMemo(() => {
     if (!assessment || dismissedWarning) return false;
     return !assessment.summary || assessment.summary.length < 20 ||
@@ -95,6 +97,19 @@ function AssessmentContent() {
       alert("Error asking question: " + err.message);
     } finally {
       setAskingQuestion(false);
+    }
+  };
+
+  const handleExportMarkdown = () => {
+    if (!githubData || !assessment) return;
+    try {
+      const markdown = assessmentToMarkdown({ githubData, assessment }, mode);
+      const filename = buildExportFilename(githubData.username, mode);
+      downloadMarkdown(filename, markdown);
+      setExported(true);
+      setTimeout(() => setExported(false), 2000);
+    } catch (err: any) {
+      alert("Error exporting report: " + err.message);
     }
   };
 
@@ -413,6 +428,24 @@ function AssessmentContent() {
               </div>
             </div>
             </div>
+
+          <div className="bg-[#161B22] border border-[#30363D] rounded-xl p-5 shadow-lg">
+            <button
+              onClick={handleExportMarkdown}
+              aria-label="Export this assessment report as a Markdown file"
+              className="w-full flex items-center justify-center gap-2 bg-[#21262D] hover:bg-[#30363D] border border-[#30363D] text-[#C9D1D9] text-xs font-bold py-3 px-4 rounded-lg transition-colors uppercase tracking-widest"
+            >
+              {exported ? (
+                <>
+                  <Check className="w-4 h-4 text-[#46E363]" aria-hidden="true" /> Exported!
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" aria-hidden="true" /> Export as Markdown
+                </>
+              )}
+            </button>
+          </div>
 
           {mode === 'employer' && (
             <div className="bg-[#161B22] border border-[#30363D] rounded-xl p-5 shadow-lg">
