@@ -5,3 +5,4 @@ coverage/
 *.log
 .env*
 .env.example
+tsconfig.tsbuildinfo
