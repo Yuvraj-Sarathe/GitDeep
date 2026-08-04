@@ -142,6 +142,7 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 <tr>
 <td align="center"><a href="https://github.com/Yuva-Deekshitha-N"><img src="https://avatars.githubusercontent.com/u/153242050?s=80" width="80" style="border-radius:50%" alt="Yuva-Deekshitha-N"><br><sub><b>Yuva-Deekshitha-N</b></sub></a></td>
 <td align="center"><a href="https://github.com/karrisanthoshigayatri"><img src="https://avatars.githubusercontent.com/u/268634585?s=80" width="80" style="border-radius:50%" alt="karrisanthoshigayatri"><br><sub><b>karrisanthoshigayatri</b></sub></a></td>
+<td align="center"><a href="https://github.com/bharat-mewada-ai"><img src="https://avatars.githubusercontent.com/u/250170988?s=80" width="80" style="border-radius:50%" alt="bharat-mewada-ai"><br><sub><b>bharat-mewada-ai</b></sub></a></td>
 <td align="center"><a href="https://github.com/preranaanand07"><img src="https://avatars.githubusercontent.com/u/241425799?s=80" width="80" style="border-radius:50%" alt="preranaanand07"><br><sub><b>preranaanand07</b></sub></a></td>
 <td align="center"><a href="https://github.com/Rudrx17"><img src="https://avatars.githubusercontent.com/u/185841328?s=80" width="80" style="border-radius:50%" alt="Rudrx17"><br><sub><b>Rudrx17</b></sub></a></td>
 </tr>
