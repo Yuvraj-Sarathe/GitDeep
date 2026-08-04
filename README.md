@@ -157,12 +157,9 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 
 ---
 
-<div align="center">
-
 ## Support
 
 - Open an issue on [GitHub Issues](https://github.com/Yuvraj-Sarathe/GitDeep/issues)
 - Explore the [README](README.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [LICENSE](LICENSE)
 - Access the live application at [GitDeep Live Application](https://gitdeep.vercel.app)
 
-</div>
