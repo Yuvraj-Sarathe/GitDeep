@@ -4,6 +4,17 @@ import { AppSettings } from './types';
 
 export type AssessmentMode = 'employer' | 'developer';
 
+export interface ProjectIdea {
+  title: string;
+  description: string;
+  techStack: string[];
+}
+
+export interface MentorshipResult {
+  mentorshipPlan: string;
+  projectIdeas: ProjectIdea[];
+}
+
 export interface AssessmentResult {
   summary: string;
   tags: string[];
@@ -61,6 +72,7 @@ export interface AssessmentResult {
   notSuitedRoles: string[];
   detailedReport: string;
   mentorshipPlan?: string;
+  projectIdeas: ProjectIdea[];
   repoAssessments: {
     repoName: string;
     repoScore: number;
@@ -93,8 +105,8 @@ export interface ComparisonResult {
   verdict: string;
 }
 
-const ASSESSMENT_SYSTEM_PROMPT = "You are an expert tech recruiter and senior engineering manager evaluating a candidate's GitHub profile. YOU MUST OUTPUT ONLY VALID MINIFIED JSON. NO MARKDOWN OR HTML WRAPPERS.";
-const COMPARISON_SYSTEM_PROMPT = "You are an expert tech recruiter comparing candidates. OUTPUT ONLY VALID JSON.";
+const ASSESSMENT_SYSTEM_PROMPT = "You are a professional GitHub Auditor. Tone: witty, analytical, brutally honest, slightly sarcastic (roast style). No mercy, no sugarcoating, no participation trophies — every profile gets the truth, served cold. NEVER soften a criticism by following it with praise of the same thing — no 'but', 'that said', 'to be fair', 'though'. Every verdict is committed and final; pick a lane per aspect and stay in it. YOU MUST OUTPUT ONLY VALID MINIFIED JSON. NO MARKDOWN OR HTML WRAPPERS.";
+const COMPARISON_SYSTEM_PROMPT = "You are a professional GitHub Auditor comparing candidates. Tone: witty, analytical, brutally honest, slightly sarcastic (roast style). No mercy: weak candidates get roasted, ineligible candidates get rejected outright. OUTPUT ONLY VALID JSON.";
 
 const assessmentSchema = {
   type: Type.OBJECT,
@@ -114,9 +126,10 @@ const assessmentSchema = {
     notSuitedRoles: { type: Type.ARRAY, items: { type: Type.STRING } },
     detailedReport: { type: Type.STRING },
     mentorshipPlan: { type: Type.STRING },
-    repoAssessments: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { repoName: { type: Type.STRING }, repoScore: { type: Type.NUMBER }, repoVerdict: { type: Type.STRING }, repoAnalysis: { type: Type.STRING }, keyHighlights: { type: Type.ARRAY, items: { type: Type.STRING } }, redFlags: { type: Type.ARRAY, items: { type: Type.STRING } } } } }
+    repoAssessments: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { repoName: { type: Type.STRING }, repoScore: { type: Type.NUMBER }, repoVerdict: { type: Type.STRING }, repoAnalysis: { type: Type.STRING }, keyHighlights: { type: Type.ARRAY, items: { type: Type.STRING } }, redFlags: { type: Type.ARRAY, items: { type: Type.STRING } } } } },
+    projectIdeas: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, description: { type: Type.STRING }, techStack: { type: Type.ARRAY, items: { type: Type.STRING } } } } }
   },
-  required: ["summary", "tags", "timeline", "growthMeter", "swot", "metrics", "weaknessMetrics", "slopeAnalysis", "buzzwordAnalysis", "behavioralAnalysis", "hirabilityScore", "hirabilityRoles", "notSuitedRoles", "detailedReport", "repoAssessments"]
+  required: ["summary", "tags", "timeline", "growthMeter", "swot", "metrics", "weaknessMetrics", "slopeAnalysis", "buzzwordAnalysis", "behavioralAnalysis", "hirabilityScore", "hirabilityRoles", "notSuitedRoles", "detailedReport", "repoAssessments", "projectIdeas"]
 };
 
 const comparisonSchema = {
@@ -127,6 +140,17 @@ const comparisonSchema = {
     verdict: { type: Type.STRING }
   }
 };
+
+const mentorshipSchema = {
+  type: Type.OBJECT,
+  properties: {
+    mentorshipPlan: { type: Type.STRING },
+    projectIdeas: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, description: { type: Type.STRING }, techStack: { type: Type.ARRAY, items: { type: Type.STRING } } } } }
+  },
+  required: ["mentorshipPlan", "projectIdeas"]
+};
+
+const MENTORSHIP_SYSTEM_PROMPT = "You are a professional GitHub Auditor turned BRUTAL MENTOR. The assessment is already complete — your only job is to tell the developer exactly what to improve — code, repos, and presence — and what to build next. No re-scoring, no re-evaluating, no softening. Roast-style honesty: blunt, specific, actionable. Never contradict the assessment's verdicts and never walk back a criticism with 'but', 'that said', 'to be fair' — commit to every call. YOU MUST OUTPUT ONLY VALID MINIFIED JSON. NO MARKDOWN OR HTML WRAPPERS.";
 
 async function callGemini(apiKey: string, model: string, systemMsg: string, userPrompt: string, schema: any): Promise<string> {
   const ai = new GoogleGenAI({ apiKey });
@@ -207,13 +231,14 @@ function getAISuggestion(error: Error, provider: string): string {
   return error.message;
 }
 
-async function callAI(settings: AppSettings, systemMsg: string, userPrompt: string, provider: 'assessment' | 'comparison'): Promise<string> {
+async function callAI(settings: AppSettings, systemMsg: string, userPrompt: string, provider: 'assessment' | 'comparison' | 'mentorship'): Promise<string> {
   const providerType = settings.aiProvider;
+  const schema = provider === 'assessment' ? assessmentSchema : provider === 'comparison' ? comparisonSchema : mentorshipSchema;
   switch (providerType) {
     case 'gemini': {
       const key = settings.apiKey || process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
       if (!key) throw new Error('Gemini API key is required.');
-      return callGemini(key, settings.model || 'gemini-2.5-flash', systemMsg, userPrompt, provider === 'assessment' ? assessmentSchema : comparisonSchema);
+      return callGemini(key, settings.model || 'gemini-2.5-flash', systemMsg, userPrompt, schema);
     }
     case 'ollama': {
       if (!settings.apiEndpoint) throw new Error('Ollama endpoint is required.');
@@ -267,10 +292,19 @@ function validateAssessmentComplete(result: AssessmentResult): { complete: boole
   if (!result.detailedReport || result.detailedReport.length < 200) issues.push('detailed report truncated');
   if (!result.repoAssessments || result.repoAssessments.length === 0) issues.push('repo assessments missing');
   if (!result.timeline || result.timeline.length === 0) issues.push('career timeline missing');
-  if (!result.swot.strengths || result.swot.strengths.length === 0) issues.push('SWOT strengths empty');
-  if (!result.swot.weaknesses || result.swot.weaknesses.length === 0) issues.push('SWOT weaknesses empty');
   if (!result.hirabilityRoles || result.hirabilityRoles.length === 0) issues.push('hirability roles missing');
   if (!result.tags || result.tags.length === 0) issues.push('tags missing');
+
+  // ALL FOUR SWOT quadrants are mandatory — a partial SWOT means the assessment
+  // is incomplete, not that "no opportunities/threats exist".
+  const swotQuadrants: Array<keyof AssessmentResult['swot']> = ['strengths', 'weaknesses', 'opportunities', 'threats'];
+  const missingSwot = swotQuadrants.filter(k => !result.swot[k] || result.swot[k].length === 0);
+  if (missingSwot.length > 0) {
+    return {
+      complete: false,
+      reason: `SWOT incomplete — ${missingSwot.join(', ')} empty. All 4 SWOT quadrants (strengths, weaknesses, opportunities, threats) must be filled.`,
+    };
+  }
 
   if (issues.length >= 3) {
     return { complete: false, reason: issues.slice(0, 3).join('; ') };
@@ -308,6 +342,11 @@ function normalizeAssessment(raw: any): AssessmentResult {
     notSuitedRoles: Array.isArray(raw.notSuitedRoles) ? raw.notSuitedRoles : [],
     detailedReport: raw.detailedReport || '',
     mentorshipPlan: raw.mentorshipPlan,
+    projectIdeas: Array.isArray(raw.projectIdeas) ? raw.projectIdeas.map((p: any) => ({
+      title: p.title || '',
+      description: p.description || '',
+      techStack: Array.isArray(p.techStack) ? p.techStack : [],
+    })) : [],
     repoAssessments: Array.isArray(raw.repoAssessments) ? raw.repoAssessments.map((r: any) => ({
       repoName: r.repoName || '',
       repoScore: typeof r.repoScore === 'number' ? r.repoScore : 5,
@@ -364,16 +403,16 @@ ${userJson}
 
 ---
 
-## CONTEXT-AWARE DEVELOPER STAGE ASSESSMENT (READ FIRST — THIS CHANGES HOW YOU EVALUATE)
+## STAGE CONTEXT — INFORMATION ONLY, NEVER AN EXCUSE
 
-Before scoring anything, infer the developer's career stage from their account age, bio, and activity:
+Infer the developer's career stage from account age, bio, and activity (beginner / student / senior student / professional). Use it to decide WHAT to inspect and WHAT to roast — NEVER to lower the bar. There is no lenience anywhere in this audit. No participation trophies. A one-week-old account full of tutorial clones gets roasted just as hard as a five-year account full of todo apps. The stage only changes the flavor of the criticism, not the standards:
 
-- **First-year student / Beginner (<1 year account, <10 repos):** Evaluate against beginner standards. Basic CRUD apps, tutorial repos, and small scripts are EXPECTED. Do not penalize for lack of architecture. Penalize for: zero original work (pure forks/copies), no README on any repo, no signs of curiosity or growth. Be encouraging in developer mode, but still honest.
-- **Student (1–3 year account, still learning):** Expect some original projects, at least one decent README, some exploration beyond tutorials. Penalize for: still doing only tutorial clones, zero deployment attempts, stagnant language stack.
-- **Final-year student / Senior student (3–5 year account with student signals):** Must show: at least one deployed project, some evidence of architecture thinking (not just index.js and style.css), meaningful README on their flagship repo, and at least one external contribution or real-world project attempt.
-- **Professional / Working developer (5+ year account, or company in bio, or references to real jobs):** Evaluated against full professional standards — no lenience. Expect consistent activity, external PRs, production-grade repos, and strong documentation.
+- **Beginner (<1 year account, <10 repos):** Zero original work, pure forks, no README anywhere, no sign of curiosity — call it out by name. A tutorial clone as the ONLY repo is not a portfolio, it is homework.
+- **Student (1–3 year account, still learning):** Still only tutorial clones, zero deployment attempts, stagnant language stack — say it plainly. Some original projects and one decent README are the minimum expected; below that is a failing grade.
+- **Senior student (3–5 year account with student signals):** No deployed project, no architecture thinking (just index.js and style.css), flagship repo with no meaningful README, zero external contributions — no mercy. The bar is real jobs now.
+- **Professional (5+ year account, or company in bio, or references to real jobs):** Full professional standards — consistent activity, external PRs, production-grade repos, strong documentation. Anything less gets flagged hard.
 
-**CRITICAL:** This context-aware lenience applies ONLY to the detailedReport, summary, tags, slopeAnalysis, metrics, weaknessMetrics, repoAssessments, and growthMeter. It does NOT apply to hirabilityScore, hirabilityRoles, or notSuitedRoles. Hiring is about job standards, not the developer's current life stage. A first-year student can still be assessed for an internship at the same threshold as anyone else — the bar for that internship doesn't lower because they're a student.
+Hirability is ALWAYS judged against real job standards — the same threshold for a student, a senior, and a first-year. "Tried their best" is the minimum, not a compliment. A first-year student applying for an internship clears the exact same bar as anyone else.
 
 ---
 
@@ -406,14 +445,18 @@ Before scoring anything, infer the developer's career stage from their account a
 12. **Hirability — DO NOT SOFTEN THIS:**
     - Expand criteria to differentiate internship vs full-time vs senior roles.
     - **DO NOT hesitate to mark someone as unsuitable for a role.** If they are not hire-ready, say so clearly in notSuitedRoles. "Junior Frontend Intern" should not appear in hirabilityRoles for a developer with no original work, no READMEs, and no consistency.
-    - The hirability score must reflect real-world hiring standards. A score of 4 means "not hireable right now by most companies." Call it. A score of 2 means "significant work needed before applying anywhere." Say that.
+    - The hirability score must reflect real-world hiring standards and DEMONSTRATED SKILL — what their code proves they can do today. Never potential, never enthusiasm, never how impressive the README sounds. Score anchors, memorize them: 9+ = top 0.5% of GitHub developers (legendary, near-flawless); 8+ = top 2% (exceptional: external PRs + production-grade repos + real docs + multi-year consistency); 6.5–7 = genuinely strong and competitive; 5 = average developer, entry-level at best; 3–4 = weak — not hireable right now by most companies; 0–2 = empty or fake profile. The median real-world developer scores 4.5–5.5 — most profiles should land BELOW 6. When uncertain, score LOWER.
 
-13. **Tone — BE HUMAN, NOT A PRESS RELEASE:**
-    - Write like a brutally honest senior engineer reviewing a resume, not like an AI trying to be nice.
-    - If the profile is weak, say it's weak. Don't hide behind phrases like "shows potential" unless they genuinely do.
-    - If the profile is strong, say so clearly without over-celebrating.
-    - Avoid filler sentences like "Overall, this developer shows promise." Either they do or they don't — be specific.
+13. **Tone — ROAST STYLE, BRUTAL TRUTH, NO MERCY:**
+    - Write like a professional GitHub Auditor: witty, analytical, slightly sarcastic. The profile gets roasted honestly; the developer gets the truth, not comfort.
+    - Open the summary with a 1–2 sentence brutal but accurate roast of the profile (e.g. "48 repos, zero external PRs, and a bio promising 'AI Engineer' while the language stats scream HTML — the only thing artificial here is the intelligence.").
+    - If the profile is weak, say it's weak and make it sting. The phrase "shows potential" is BANNED unless the trajectory genuinely supports it.
+    - If the profile is strong, respect it without celebrating — a good profile earns a nod, not confetti.
+    - Avoid filler sentences like "Overall, this developer shows promise." Either they do or they don't — be specific and be cutting.
     - Nuance is allowed: if something looks bad on the surface but is actually impressive when understood (e.g. AI orchestration producing production-grade output), use ***bold italic*** to flag this explicitly.
+    - **NO BACKTRACKING — NEVER WALK BACK A ROAST.** A criticism stands alone. Never follow a critique with "but...", "that said...", "to be fair...", "in its defense...", "though...", "on the other hand...", "still, credit where due...", "which is nice...". If you call something weak, end the thought there. Do NOT rescue it in the same sentence, paragraph, or section.
+    - **COMMIT TO EVERY VERDICT.** Weak is weak. Strong is strong. Pick a lane for each aspect of the profile and stay in it — never "X is bad... but also kind of good." If a genuine strength exists, state it as a strength in its own place; it must not contradict a roast you just delivered.
+    - **ROAST WITH SPECIFICS, NOT BACKHANDED SUGAR.** Name the actual repo, README, PR, or stat in every criticism. Default to cutting. When in doubt, be harsher — this is an audit, not a performance review written by HR.
 
 14. **STRUCTURED REPORT FORMAT:**
     - Use ## for major sections, ### for sub-topics.
@@ -430,14 +473,15 @@ Before scoring anything, infer the developer's career stage from their account a
     - 2–3 sentence analysis, key highlights, red flags.
     - Apply the developer stage context here — a first-year student's first project gets judged against first-year standards, but a final-year student's "first project" style repo gets no mercy.
 
-16. **SCORE STABILITY — FIXED 3-TIER BAND SYSTEM:**
+16. **SCORE STABILITY — FIXED 4-TIER BAND SYSTEM (HARSH CALIBRATION):**
     - Determine tier first from 3 hard signals: (a) merged PRs in external repos, (b) original non-fork repos with READMEs, (c) 6+ months of consistent activity.
-    - 0/3 signals = Tier 1 (score 1–4). 1/3 = Tier 2 (5–6.9 or 7.1). 2–3/3 = Tier 3 (7.1–10).
-    - Fine-tune ±0.5 within the band for quality factors.
+    - 0/3 signals = Tier 1 (score 1.0–3.5). 1/3 = Tier 2 (3.6–5.9). 2/3 = Tier 3 (6.0–7.5). 3/3 = Tier 4 (7.6–9.5). A score above 7.5 requires ALL three signals. 10.0 is effectively unreachable — reserved for a profile with zero significant weaknesses.
+    - Fine-tune ±0.4 within the band for quality factors — downgrade aggressively for critical weaknesses, never upgrade out of enthusiasm.
+    - **MANDATORY SCORE CAPS (never exceed, regardless of signals):** no external merged PRs → 6.9; no original non-fork repo with a README → 4.9; no commits in the last 3 months or declining slope → 5.9; any critical weaknessMetric above 70 → 5.9 (two or more → 4.9); more than half of repos forked or README-less → 5.9; no tests in any repo → 6.9; account under 1 year with only tutorial clones → 3.9.
     - **7.0 is banned** everywhere. Use 6.9 or 7.1. This applies to every numeric field.
-    - Maximum deviation between two assessments of the same profile: ±1.0.
+    - **STABILITY:** Decide the score ONCE from the evidence — identical evidence must produce an identical score. Maximum deviation between two assessments of the same profile: ±0.3.
 
-17. **MODE PARITY:** hirabilityScore, metrics, weaknessMetrics, swot, tags, slopeAnalysis, buzzwordAnalysis, behavioralAnalysis, growthMeter, timeline, summary, detailedReport, and repoAssessments must be IDENTICAL between modes. The mode ONLY controls whether mentorshipPlan is populated.
+17. **MODE PARITY:** hirabilityScore, metrics, weaknessMetrics, swot, tags, slopeAnalysis, buzzwordAnalysis, behavioralAnalysis, growthMeter, timeline, summary, detailedReport, repoAssessments, and projectIdeas must be IDENTICAL between modes. The mode ONLY controls whether mentorshipPlan is populated.
 
 18. **MENTORSHIP PLAN (developer mode only):**
     - Do NOT write a generic "improve your READMEs and keep learning" plan.
@@ -448,9 +492,10 @@ Before scoring anything, infer the developer's career stage from their account a
       - If their commit history is stale, give them a concrete 30-day challenge.
       - If they show arrogant patterns in their writing, call it out directly and give them a rephrased example.
       - The plan should feel like advice from a blunt mentor who genuinely wants them to level up, not a chatbot generating bullet points.
+      - Populate projectIdeas with exactly 3 items ({title, description, techStack}): concrete projects that fill THIS developer's portfolio gaps. Say WHAT to build, WHY it would impress a recruiter, and WHICH specific technologies to use. Each idea must be distinct and tied to a weakness already identified — never generic "todo app" filler.
 
 Your role (MODE-SPECIFIC — tone only, scores never change):
-${mode === 'employer' ? 'BRUTALLY HONEST HIRING ASSESSOR. You are a senior engineer advising a hiring manager. Your job is to protect the company from bad hires. If the developer is not ready, say so. No tips, no improvement advice, no cushioning. If they are unsuitable, be clear.' : 'BLUNT MENTOR. Same scores and assessments as employer mode. Additionally, populate mentorshipPlan with specific, actionable upgrade advice targeted at THIS developer\'s actual weaknesses — not generic career advice.'}
+${mode === 'employer' ? 'BRUTAL HIRING ASSESSOR. You are a senior engineer advising a hiring manager, and your job is to protect the company from bad hires. Roast the weak, endorse the strong, reject the unready. No tips, no improvement advice, no cushioning, no mercy.' : 'BRUTAL MENTOR. Same scores and assessments as employer mode, same harsh tone — no sugarcoating. Additionally, populate mentorshipPlan with specific, actionable upgrade advice targeted at THIS developer\'s actual weaknesses — blunt and concrete enough to sting.'}
 
 ${customQuestions ? `Employer's custom question: "${customQuestions}" — answer this directly and honestly in the detailedReport under a ## Custom Assessment section.` : ''}
 
@@ -481,7 +526,7 @@ function buildSmallPrompt(data: UserAssessmentData, mode: AssessmentMode, custom
   let prompt = `Analyze this GitHub profile:
 ${userJson}
 
-STAGE CONTEXT: Infer the developer's stage (beginner/student/senior student/professional) from account age and activity. Apply lenience to code quality evaluation only. Hirability scoring uses professional standards regardless of stage.
+STAGE CONTEXT: Infer the developer's stage (beginner/student/senior student/professional) from account age and activity. Information only — NEVER an excuse. No lenience anywhere, for anyone, at any stage. A one-week-old account gets roasted as hard as a five-year account. Hirability scoring uses professional standards regardless of stage.
 
 RULES:
 1. Slope: Rising Star, Steady, Declining, or Sporadic? Assess burnout risk.
@@ -496,11 +541,11 @@ RULES:
 10. SWOT: 2–3 bullets each, never empty. Opportunities = external market fit.
 11. Timeline phases from account creation. growthMeter reflects actual trajectory, not potential.
 12. Hirability: Use real hiring standards. Do not soften. A developer who is not hire-ready gets marked as such in notSuitedRoles. Be explicit.
-13. Scores 1.0–10.0. 7.0 is BANNED everywhere. Use 6.9 or 7.1. Tiers: 1–4 WEAK (0/3 hard signals), 5–6.9/7.1 AVERAGE (1/3), 7.1–10 STRONG (2–3/3). Hard signals: external merged PRs, original repos with READMEs, 6+ months consistent activity.
+13. Scores 1.0–10.0, HARSH scale: most real profiles land 3–6; 8+ = top 2% of GitHub developers; when uncertain, score LOWER. 7.0 is BANNED everywhere. Use 6.9 or 7.1. Tiers: 1.0–3.5 WEAK (0/3 hard signals), 3.6–5.9 AVERAGE (1/3), 6.0–7.5 STRONG (2/3), 7.6–9.5 EXCEPTIONAL (3/3). Hard signals: external merged PRs, original repos with READMEs, 6+ months consistent activity. Caps (never exceed): no external PRs → 6.9 max; no original README'd repo → 4.9 max; 3+ months inactive or declining slope → 5.9 max; critical weakness >70 → 5.9 max; most repos forked or README-less → 5.9 max; no tests anywhere → 6.9 max. Score must reflect demonstrated skill, never potential. Identical evidence → identical score (deviation ≤0.3).
 14. Per-repo: Score 1–10, verdict, 1–2 sentence analysis. Stage-aware for quality, not for hirability.
-15. Tone: Write like a blunt senior engineer, not a supportive chatbot. If it's weak, say it's weak.
+15. Tone: ROAST STYLE — witty, analytical, slightly sarcastic, zero mercy. Open the summary with a 1-2 sentence brutal roast. If it's weak, make it sting. Banned: "shows potential", "overall a solid developer", participation-trophy praise, and ALL backtracking — never follow a critique with "but", "that said", "to be fair", "though", "in its defense", "on the other hand". Commit to every verdict; never rescue something you just roasted.
 
-Mode: ${mode === 'employer' ? 'Brutally honest. No improvement tips. If unsuitable, say so clearly.' : 'Blunt mentor. Same scores. Add mentorshipPlan with SPECIFIC language suggestions, concrete project ideas for this developer\'s actual gaps, and direct feedback on their writing/tone — not generic advice.'}
+Mode: ${mode === 'employer' ? 'Brutally honest, roast style. No improvement tips. If unsuitable, say so clearly.' : 'Blunt mentor. Same scores, same harsh tone. Add mentorshipPlan with SPECIFIC language suggestions, concrete project ideas for this developer\'s actual gaps, direct feedback on their writing/tone, a repo portfolio audit (which repos to remove or archive, which to improve and exactly how, which to add next), and unconventional growth tactics for real stars/forks — launch posts, building in public, cross-posting tutorials, contributing to trending repos, pinning and renaming for discoverability; no fake stars, no spam. Not generic advice. Also output projectIdeas: exactly 3 objects {title, description, techStack} that fill those gaps.'}
 ${customQuestions ? `Custom Q: "${customQuestions}"` : ''}
 
 Output ONLY valid JSON. No markdown wrappers. KEEP IT CONCISE. Output ONLY valid JSON.
@@ -563,9 +608,89 @@ INSTRUCTIONS:
 - For each candidate, list their top strengths, top weaknesses, potential score (0-100), the role they are best suited for, and the role they are worst suited for.
 - Provide an overall ranking where each candidate is assigned to roles they would excel at (e.g. "user1 is best for AI/ML engineering", "user2 is best for full-stack development").
 - The verdict should summarize: either "All candidates are ineligible - move to the next batch of candidates" or specify which candidate(s) are recommended.
-- Be brutally honest. If none are good, say so.
+- Be brutally honest, roast style, no mercy. If none are good, say so and say exactly why each one fails.
 - Output ONLY valid JSON. No markdown, no wrappers.
 `;
+}
+
+function buildMentorshipPrompt(data: UserAssessmentData, cached: AssessmentResult): string {
+  const userJson = JSON.stringify({
+    profile: {
+      name: data.name, username: data.username, bio: data.bio,
+      followers: data.followers, following: data.following, publicRepos: data.publicRepos,
+      createdAt: data.createdAt, totalStars: data.totalStars, totalMergedPRs: data.totalPrs,
+    },
+    topLanguages: data.languages,
+    recentRepos: data.repos.slice(0, 15).map(r => ({
+      name: r.name, description: r.description, stars: r.stars, forks: r.forks,
+      language: r.language, isFork: r.isFork, hasReadme: r.hasReadme,
+    })),
+  }, null, 2);
+
+  const cachedJson = JSON.stringify({
+    hirabilityScore: cached.hirabilityScore,
+    hirabilityRoles: cached.hirabilityRoles,
+    notSuitedRoles: cached.notSuitedRoles,
+    growthMeter: cached.growthMeter,
+    summary: cached.summary,
+    tags: cached.tags,
+    swot: cached.swot,
+    metrics: cached.metrics,
+    weaknessMetrics: cached.weaknessMetrics,
+    slopeAnalysis: cached.slopeAnalysis,
+    buzzwordAnalysis: cached.buzzwordAnalysis,
+    behavioralAnalysis: cached.behavioralAnalysis,
+    repoAssessments: (cached.repoAssessments || []).map(r => ({ repoName: r.repoName, repoScore: r.repoScore, repoVerdict: r.repoVerdict })),
+  }, null, 2);
+
+  return `A developer has already been assessed in Employer Mode. Your job is NOT to re-score or re-evaluate them — it is to mentor them, brutally, on exactly what to improve and what to build next, using the completed assessment as ground truth.
+
+## DEVELOPER PROFILE
+${userJson}
+
+## COMPLETED EMPLOYER ASSESSMENT (GROUND TRUTH — DO NOT CHANGE SCORES)
+${cachedJson}
+
+## INSTRUCTIONS
+1. Accept every score, verdict, and weakness in the assessment as final. Never contradict or soften them. The scores do not change in mentor mode.
+2. Write mentorshipPlan as Markdown using ## for sections and ### for sub-topics, separated by --- dividers. Use ⚠️ for warnings, ✅ for genuine positives, 🔍 for observations, **bold** for key points, > **NOTE:** for callouts. Structure it as:
+   - ## What to Fix First — rank their top weaknesses by impact (tie each to a specific weaknessMetric or SWOT weakness from the assessment). One concrete fix per item, no vague advice.
+   - ## Learning Path — name specific languages/frameworks based on what their current stack is MISSING (e.g. frontend-only devs need Node.js or Python; no tests means learning a testing framework). Justify each in one line.
+   - ## Repo Portfolio: Remove, Add, Improve — audit the actual repos in the DEVELOPER PROFILE, naming them by name. REMOVE: which repos to delete or archive and why (dead experiments, zero-value junk, duplicates, embarrassing half-finished work). ADD: which gap-filling repos to create next and what each must demonstrate (tie to projectIdeas). IMPROVE: for every repo they keep, one concrete improvement — rewrite the README, write a real description, add docs/tests/CI, a demo link or screenshot. Never say "some of your repos" — always name the repo.
+   - ## README & Repo Hygiene — if lackOfDocs is high or repos lack READMEs, rewrite one of their actual repos' READMEs as a short example of what it should look like.
+   - ## 30-Day Challenge — if their commit history is stale or inconsistent, give a concrete 30-day challenge. Skip only if activity is already strong.
+   - ## Communication & Tone — if arrogance is high, quote an arrogant pattern from their profile and give a rephrased, professional version.
+   - ## Unconventional Growth Tactics — real, specific marketing moves to grow stars, forks, and followers: launch posts on X/LinkedIn when shipping, cross-post tutorials to dev.to/Hashnode, build in public (daily commits, visible progress), contribute meaningful PRs to trending repos in their niche so their name reaches thousands, rename and reword repos and descriptions for searchability, pin their best work, add OG images and badges, ship one small tool that solves a real problem and post it to HN/Product Hunt/relevant subreddits. Warn hard against fake stars, star-begging, and spammy self-promotion — the goal is getting their BEST work seen, not gaming numbers.
+   - ## What You're Already Good At — 2-3 lines of honest credit tied to their actual strengths (no fluff, no participation trophies).
+3. Output projectIdeas: exactly 3 concrete projects that fill THIS developer's portfolio gaps — these are the repos they should ADD next. For each: title, description (WHAT to build, WHY it would impress a recruiter, and WHICH of their weaknesses it addresses), and techStack (3-6 specific technologies). Ideas must be tied to the weaknesses in the assessment — not generic "todo app" filler.
+
+Output ONLY valid JSON with keys: mentorshipPlan (string) and projectIdeas (array of {title, description, techStack}).
+No markdown outside the JSON. No preamble.`;
+}
+
+export async function generateMentorship(
+  data: UserAssessmentData,
+  settings: AppSettings,
+  cachedAssessment: AssessmentResult
+): Promise<MentorshipResult> {
+  const prompt = buildMentorshipPrompt(data, cachedAssessment);
+  const rawResponse = await callAI(settings, MENTORSHIP_SYSTEM_PROMPT, prompt, 'mentorship');
+
+  try {
+    const cleaned = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(cleaned);
+    return {
+      mentorshipPlan: typeof parsed.mentorshipPlan === 'string' ? parsed.mentorshipPlan : '',
+      projectIdeas: Array.isArray(parsed.projectIdeas) ? parsed.projectIdeas.map((p: any) => ({
+        title: p.title || '',
+        description: p.description || '',
+        techStack: Array.isArray(p.techStack) ? p.techStack : [],
+      })) : [],
+    };
+  } catch (e: any) {
+    const suggestion = getAISuggestion(e, settings.aiProvider);
+    throw new Error(suggestion);
+  }
 }
 
 export async function compareCandidates(
