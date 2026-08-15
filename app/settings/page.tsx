@@ -29,7 +29,7 @@ export default function SettingsPage() {
   const currentProvider = AI_PROVIDERS.find(p => p.id === localSettings.aiProvider) || AI_PROVIDERS[0];
 
   return (
-    <div className="flex-1 min-h-[100dvh] bg-[#050505]">
+    <div className="flex-1 min-h-[100dvh]">
       <div className="grain" />
       <div className="relative z-10">
         {/* Header */}

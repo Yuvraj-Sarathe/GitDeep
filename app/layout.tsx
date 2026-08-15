@@ -4,6 +4,7 @@ import './globals.css';
 import { StoreProvider } from '@/lib/store';
 import Image from 'next/image';
 import logo from './logo.png';
+import StarField from '@/components/StarField';
 
 const display = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -33,10 +34,13 @@ export default function RootLayout({children}: {children: React.ReactNode}) {
   return (
     <html lang="en" className={`${display.variable} ${mono.variable}`} style={{ colorScheme: 'dark' }} suppressHydrationWarning>
       <body className="font-display bg-[#050505] text-[#C9D1D9] min-h-[100dvh] flex flex-col antialiased">
+        <div className="fixed inset-0 -z-10 pointer-events-none overflow-hidden">
+          <StarField />
+        </div>
         <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-          <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] rounded-full bg-[#58A6FF]/[0.03] blur-[120px]" />
-          <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[#8957E5]/[0.03] blur-[120px]" />
-          <div className="absolute top-[40%] right-[20%] w-[30%] h-[30%] rounded-full bg-[#2EA043]/[0.02] blur-[100px]" />
+          <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] rounded-full bg-[#58A6FF]/[0.02] blur-[120px]" />
+          <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[#8957E5]/[0.015] blur-[120px]" />
+          <div className="absolute top-[40%] right-[20%] w-[30%] h-[30%] rounded-full bg-[#1F6FEB]/[0.02] blur-[100px]" />
         </div>
         <StoreProvider>
           {children}
