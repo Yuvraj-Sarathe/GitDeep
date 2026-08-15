@@ -58,7 +58,7 @@ export function assessmentToMarkdown(data: ExportableAssessment, mode: Assessmen
   const { githubData: g, assessment: a } = data;
   const displayName = g.name || g.username;
   const generatedAt = new Date().toLocaleString();
-  const modeLabel = mode === 'employer' ? 'Employer Mode' : 'Developer Mode';
+  const modeLabel = mode === 'employer' ? 'Employer Mode' : 'Mentor Mode';
 
   const sections: string[] = [];
 
@@ -248,9 +248,23 @@ export function assessmentToMarkdown(data: ExportableAssessment, mode: Assessmen
     sections.push(['## Detailed Assessment Output', a.detailedReport.replace(/\\n/g, '\n\n')].join('\n\n'));
   }
 
-  // --- Mentorship Plan (developer mode only) -------------------------------
+  // --- Mentorship Plan (mentor mode only) -----------------------------------
   if (mode === 'developer' && a.mentorshipPlan) {
     sections.push(['## Mentorship & Upgrade Plan', a.mentorshipPlan].join('\n\n'));
+  }
+
+  // --- Project Ideas (mentor mode only) -------------------------------------
+  if (mode === 'developer' && a.projectIdeas && a.projectIdeas.length > 0) {
+    const ideaBlocks = a.projectIdeas.map((idea) => {
+      const stack = (idea.techStack || []).map((t) => `\`${sanitizeLine(t)}\``).join(', ');
+      return [
+        `### ${sanitizeLine(idea.title) || 'Project idea'}`,
+        '',
+        sanitizeLine(idea.description) || NOT_NOTED,
+        stack ? `**Tech Stack:** ${stack}` : '',
+      ].filter(Boolean).join('\n');
+    });
+    sections.push(['## Project Ideas to Build', ideaBlocks.join('\n\n')].join('\n\n'));
   }
 
   // --- Footer ---------------------------------------------------------------
