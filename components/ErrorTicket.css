@@ -1,0 +1,415 @@
+.error-ticket-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(5, 6, 10, 0.75);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: ticket-fade-in 0.25s ease;
+}
+
+@keyframes ticket-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.error-ticket-overlay .ticket-canvas {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2em;
+}
+
+.error-ticket-overlay .ticket-close {
+  position: fixed;
+  top: 1.5em;
+  right: 1.5em;
+  width: 2.5em;
+  height: 2.5em;
+  border-radius: 99em;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.error-ticket-overlay .ticket-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.error-ticket-overlay .ticket-wrapper {
+  --t-bg: #1e1e24;
+  --t-bg-light: #2b2b36;
+  --t-accent: #7c3aed;
+  --t-accent-glow: rgba(124, 58, 237, 0.5);
+  --t-text-main: #f8fafc;
+  --t-text-muted: #94a3b8;
+  font-size: 10px;
+  perspective: 1000px;
+  display: inline-block;
+}
+
+.error-ticket-overlay .ticket {
+  position: relative;
+  width: min(36em, 92vw);
+  color: var(--t-text-main);
+  font-family: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  transform-style: preserve-3d;
+  transition:
+    transform 0.6s cubic-bezier(0.23, 1, 0.32, 1),
+    box-shadow 0.6s ease;
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+  background: transparent;
+  filter: drop-shadow(0px 0px 10px rgba(0, 0, 0, 0.5));
+}
+
+.error-ticket-overlay .ticket-wrapper:hover .ticket {
+  transform: rotateX(5deg) rotateY(-10deg) scale(1.02);
+  box-shadow:
+    20px 20px 40px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    -5px -5px 20px var(--t-accent-glow);
+}
+
+.error-ticket-overlay .ticket::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 1em;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(255, 255, 255, 0.1) 45%,
+    rgba(255, 255, 255, 0.3) 50%,
+    rgba(255, 255, 255, 0.1) 55%,
+    transparent 60%,
+    transparent 100%
+  );
+  z-index: 10;
+  background-size: 250% 250%;
+  background-position: 100% 100%;
+  transition: background-position 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+  mix-blend-mode: overlay;
+}
+
+.error-ticket-overlay .ticket-wrapper:hover .ticket::after {
+  background-position: 0% 0%;
+}
+
+.error-ticket-overlay .t-main {
+  padding: 2em;
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(
+      circle at bottom left,
+      transparent 1em,
+      var(--t-bg) 1.05em
+    ),
+    radial-gradient(circle at bottom right, transparent 1em, var(--t-bg) 1.05em);
+  background-size: 51% 100%;
+  background-position:
+    bottom left,
+    bottom right;
+  background-repeat: no-repeat;
+  border-top-left-radius: 1em;
+  border-top-right-radius: 1em;
+}
+
+.error-ticket-overlay .t-main::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: linear-gradient(
+      rgba(124, 58, 237, 0.15) 1px,
+      transparent 1px
+    ),
+    linear-gradient(90deg, rgba(124, 58, 237, 0.15) 1px, transparent 1px);
+  background-size: 2em 2em;
+  opacity: 0.6;
+  z-index: 0;
+  pointer-events: none;
+  transform: perspective(500px) rotateX(20deg) scale(1.5);
+  animation: ticket-grid-scroll 20s linear infinite;
+}
+
+@keyframes ticket-grid-scroll {
+  0% {
+    background-position: 0 0;
+  }
+
+  100% {
+    background-position: 0 4em;
+  }
+}
+
+.error-ticket-overlay .t-content {
+  position: relative;
+  z-index: 1;
+}
+
+.error-ticket-overlay .t-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 2em;
+}
+
+.error-ticket-overlay .t-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-weight: 900;
+  font-size: 1.2em;
+  letter-spacing: -0.05em;
+  color: #fff;
+}
+
+.error-ticket-overlay .t-logo svg {
+  width: 1.5em;
+  height: 1.5em;
+  fill: var(--t-accent);
+  filter: drop-shadow(0 0 5px var(--t-accent));
+  animation: ticket-logo-pulse 3s ease-in-out infinite alternate;
+}
+
+@keyframes ticket-logo-pulse {
+  0% {
+    filter: drop-shadow(0 0 2px var(--t-accent));
+  }
+
+  100% {
+    filter: drop-shadow(0 0 10px var(--t-accent)) brightness(1.2);
+  }
+}
+
+.error-ticket-overlay .t-type {
+  font-size: 0.6em;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--t-accent);
+  border: 1px solid var(--t-accent);
+  padding: 0.4em 0.8em;
+  border-radius: 99em;
+  font-weight: 700;
+}
+
+.error-ticket-overlay .t-title {
+  font-size: 2.5em;
+  font-weight: 900;
+  line-height: 1.1;
+  margin-bottom: 0.2em;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, #fff 0%, #a5b4fc 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  overflow-wrap: anywhere;
+}
+
+.error-ticket-overlay .t-subtitle {
+  color: var(--t-text-muted);
+  font-size: 0.9em;
+  margin-bottom: 2.5em;
+  overflow-wrap: anywhere;
+}
+
+.error-ticket-overlay .t-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5em;
+  margin-bottom: 1em;
+}
+
+.error-ticket-overlay .t-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+  min-width: 0;
+}
+
+.error-ticket-overlay .t-label {
+  font-size: 0.6em;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--t-text-muted);
+}
+
+.error-ticket-overlay .t-value {
+  font-size: 1.1em;
+  font-weight: 700;
+  color: var(--t-text-main);
+  overflow-wrap: anywhere;
+}
+
+.error-ticket-overlay .t-perforation {
+  display: flex;
+  justify-content: space-between;
+  height: 1em;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+}
+
+.error-ticket-overlay .t-perf-line {
+  flex-grow: 1;
+  height: 0;
+  border-top: 2px dashed rgba(255, 255, 255, 0.2);
+  margin: 0 1.5em;
+}
+
+.error-ticket-overlay .t-stub {
+  padding: 2em;
+  background: radial-gradient(
+      circle at top left,
+      transparent 1em,
+      var(--t-bg-light) 1.05em
+    ),
+    radial-gradient(
+      circle at top right,
+      transparent 1em,
+      var(--t-bg-light) 1.05em
+    );
+  background-size: 51% 100%;
+  background-position:
+    top left,
+    top right;
+  background-repeat: no-repeat;
+  border-bottom-left-radius: 1em;
+  border-bottom-right-radius: 1em;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+}
+
+.error-ticket-overlay .t-barcode-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.error-ticket-overlay .t-barcode {
+  width: 10em;
+  height: 3em;
+  background: repeating-linear-gradient(
+    90deg,
+    #fff 0,
+    #fff 2px,
+    transparent 2px,
+    transparent 4px,
+    #fff 4px,
+    #fff 5px,
+    transparent 5px,
+    transparent 8px,
+    #fff 8px,
+    #fff 12px,
+    transparent 12px,
+    transparent 15px,
+    #fff 15px,
+    #fff 16px,
+    transparent 16px,
+    transparent 18px
+  );
+  opacity: 0.8;
+}
+
+.error-ticket-overlay .t-barcode-id {
+  font-family: monospace;
+  font-size: 0.7em;
+  color: var(--t-text-muted);
+  letter-spacing: 0.2em;
+  text-align: justify;
+}
+
+.error-ticket-overlay .t-admit {
+  text-align: right;
+}
+
+.error-ticket-overlay .t-admit-text {
+  font-size: 0.7em;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--t-text-muted);
+}
+
+.error-ticket-overlay .t-admit-num {
+  font-size: 3em;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--t-accent);
+  text-shadow: 0 0 15px var(--t-accent-glow);
+}
+
+.error-ticket-overlay .ticket-wrapper:active .ticket {
+  transform: rotateX(15deg) rotateY(-5deg) scale(0.98);
+}
+
+.error-ticket-overlay .ticket-wrapper:active .t-stub {
+  transform: translateY(5px) rotateZ(2deg);
+  opacity: 0.8;
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.error-ticket-overlay .ticket-nav {
+  display: flex;
+  justify-content: center;
+  gap: 0.75em;
+  padding-top: 1.5em;
+}
+
+.error-ticket-overlay .ticket-nav-btn {
+  font-family: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  font-size: 0.85em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--t-text-main);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 0.7em 1.8em;
+  border-radius: 0.6em;
+  text-decoration: none;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.error-ticket-overlay .ticket-nav-btn:hover {
+  background: rgba(124, 58, 237, 0.22);
+  border-color: var(--t-accent);
+  color: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .error-ticket-overlay .t-main::after,
+  .error-ticket-overlay .t-logo svg {
+    animation: none;
+  }
+}
