@@ -147,3 +147,23 @@ html::-webkit-scrollbar-thumb:hover {
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ── Mentor plan progress bar (indeterminate) ── */
+@keyframes mentor-progress {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+.animate-mentor-progress {
+  animation: mentor-progress 1.4s ease-in-out infinite;
+}
+
+/* ── Hero "how it works" looping beam ── */
+@keyframes flow-beam {
+  0%   { top: -18%; opacity: 0; }
+  12%  { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { top: 104%; opacity: 0; }
+}
+.flow-beam {
+  animation: flow-beam 6s ease-in-out infinite;
+}

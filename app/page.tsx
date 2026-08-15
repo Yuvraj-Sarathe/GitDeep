@@ -8,9 +8,9 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { SettingsModal } from '@/components/SettingsModal';
-import DotField from '@/components/DotField';
 import Image from 'next/image';
 import logo from './logo.png';
+import type { ComparisonCandidate } from '@/lib/ai';
 
 /* ── small, self-contained components ───────────────────────── */
 
@@ -34,32 +34,106 @@ function FeatureChip({ icon: Icon, label }: { icon: React.ElementType; label: st
 
 const EXAMPLE_USERS = ['torvalds', 'gaearon', 'sindresorhus', 'addyosmani', 'tj'];
 
-const HOW_IT_WORKS = [
+const FLOW_STEPS = [
   {
     step: '01',
     icon: Github,
     title: 'Enter a GitHub username',
-    desc: 'Paste any public GitHub handle — yours, a candidate\'s, or a dev you admire.',
-    color: 'text-[#58A6FF]',
-    bg: 'bg-[#58A6FF]/10',
+    desc: 'Paste any public handle — yours, a candidate\'s, or a dev you admire.',
+    chipBg: 'bg-[#58A6FF]/15',
+    chipBorder: 'border-[#58A6FF]/40',
+    iconColor: 'text-[#58A6FF]',
+    glow: 'shadow-[0_0_20px_rgba(88,166,255,0.25)]',
   },
   {
     step: '02',
     icon: Zap,
     title: 'AI reads the full profile',
-    desc: 'Repos, commit history, stars, language spread — every signal that matters.',
-    color: 'text-[#8957E5]',
-    bg: 'bg-[#8957E5]/10',
+    desc: 'Repos, commits, stars, language spread — every signal that matters.',
+    chipBg: 'bg-[#8957E5]/15',
+    chipBorder: 'border-[#8957E5]/40',
+    iconColor: 'text-[#A371F7]',
+    glow: 'shadow-[0_0_20px_rgba(137,87,229,0.3)]',
   },
   {
     step: '03',
     icon: Terminal,
     title: 'Get a brutally honest report',
-    desc: 'Strengths, red flags, growth gaps, and an overall hire-ability verdict.',
-    color: 'text-[#2EA043]',
-    bg: 'bg-[#2EA043]/10',
+    desc: 'Strengths, red flags, growth gaps, and a hire-ability verdict. No mercy.',
+    chipBg: 'bg-[#2EA043]/15',
+    chipBorder: 'border-[#2EA043]/40',
+    iconColor: 'text-[#46E363]',
+    glow: 'shadow-[0_0_20px_rgba(46,160,67,0.25)]',
   },
 ];
+
+/* Looping, gif-like "how it works" flow card */
+function HowItWorksFlow() {
+  const [active, setActive] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setActive(i => (i + 1) % FLOW_STEPS.length), 2000);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <div className="double-bezel relative">
+      <div className="inner p-6 md:p-8 relative overflow-hidden">
+        {/* travelling scanline for a "gif" feel */}
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-[#8957E5]/[0.07] to-transparent"
+          style={{ animation: 'shimmer 5s linear infinite' }}
+          aria-hidden="true"
+        />
+
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2.5">
+            <span className="w-7 h-7 rounded-lg bg-[#8957E5]/15 flex items-center justify-center">
+              <Zap className="w-4 h-4 text-[#A371F7]" aria-hidden="true" />
+            </span>
+            <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-white/60">How it works</h2>
+          </div>
+          <span className="text-[10px] font-mono text-white/25 tabular-nums">
+            {String(active + 1).padStart(2, '0')} / {String(FLOW_STEPS.length).padStart(2, '0')}
+          </span>
+        </div>
+
+        <div className="relative">
+          {/* rail */}
+          <div className="absolute left-[21px] top-3 bottom-3 w-px bg-white/[0.08]" aria-hidden="true" />
+          {/* looping beam */}
+          <div className="flow-beam absolute left-[19px] top-0 w-[5px] h-20 rounded-full bg-gradient-to-b from-transparent via-[#8957E5]/70 to-transparent" aria-hidden="true" />
+
+          <div className="space-y-1">
+            {FLOW_STEPS.map(({ icon: Icon, title, desc, chipBg, chipBorder, iconColor, glow }, i) => {
+              const isActive = i === active;
+              return (
+                <div key={title} className={`relative flex gap-4 py-2.5 premium-transition ${isActive ? 'opacity-100' : 'opacity-40'}`}>
+                  <div className={`relative z-10 w-11 h-11 rounded-xl border flex items-center justify-center premium-transition ${isActive ? `${chipBg} ${chipBorder} ${glow}` : 'bg-white/[0.03] border-white/[0.06]'}`}>
+                    <Icon className={`w-5 h-5 ${isActive ? iconColor : 'text-white/35'}`} aria-hidden="true" />
+                    {isActive && <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#46E363] animate-pulse" aria-hidden="true" />}
+                  </div>
+                  <div className="pt-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono text-white/30">{FLOW_STEPS[i].step}</span>
+                      <h3 className={`text-sm font-bold premium-transition ${isActive ? 'text-white' : 'text-white/45'}`}>{title}</h3>
+                    </div>
+                    <p className="text-xs text-white/35 leading-relaxed mt-1">{desc}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between mt-6 pt-4 border-t border-white/[0.06]">
+          <span className="text-[10px] uppercase tracking-widest text-white/25">Session-only · nothing stored</span>
+          <span className="text-[10px] font-mono text-[#A371F7]">auto-loop</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* ── main page ──────────────────────────────────────────────── */
 
@@ -68,6 +142,25 @@ export default function Home() {
   const [username, setUsername] = useState('');
   const [mode, setMode] = useState<'employer' | 'developer'>('employer');
   const [taglineIdx, setTaglineIdx] = useState(0);
+  const [savedAssessments, setSavedAssessments] = useState<ComparisonCandidate[]>([]);
+
+  // Read this tab's session cache: previously generated assessments.
+  useEffect(() => {
+    let loaded: ComparisonCandidate[] = [];
+    try {
+      const stored: ComparisonCandidate[] = JSON.parse(sessionStorage.getItem('assessedCandidates') || '[]');
+      loaded = stored.slice().reverse(); // newest first
+    } catch {
+      loaded = [];
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSavedAssessments(loaded);
+  }, []);
+
+  const clearAssessments = () => {
+    try { sessionStorage.removeItem('assessedCandidates'); } catch {}
+    setSavedAssessments([]);
+  };
 
   const taglines = [
     'Assess any GitHub profile in seconds.',
@@ -93,20 +186,6 @@ export default function Home() {
     <>
       <div className="grain" />
 
-      {/* Background dot field */}
-      <div className="fixed inset-0 z-0">
-        <DotField
-          dotRadius={2.5}
-          dotSpacing={20}
-          bulgeStrength={110}
-          glowRadius={160}
-          sparkle={false}
-          waveAmplitude={0}
-          gradientFrom="rgba(138, 87, 229, 0.6)"
-          gradientTo="rgba(88, 166, 255, 0.5)"
-        />
-      </div>
-
       {/* ── Floating nav ──────────────────────────────────────── */}
       <nav className="animate-fade-up fixed top-6 left-1/2 -translate-x-1/2 z-50">
         <div className="glass rounded-full px-5 py-2 flex items-center gap-6 shadow-2xl">
@@ -131,41 +210,49 @@ export default function Home() {
         <div className="w-full max-w-5xl mx-auto">
 
           {/* ── Hero ──────────────────────────────────────────── */}
-          <div className="text-center mb-10 md:mb-14 animate-fade-up">
-            {/* badge */}
-            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/[0.03] text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium mb-6">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#58A6FF] animate-pulse" />
-              AI-Powered GitHub Analysis
-            </span>
-
-            {/* headline */}
-            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-[4.25rem] font-bold tracking-tight text-white leading-[1] max-w-4xl mx-auto mb-5">
-              Deep-read any&nbsp;
-              <span className="inline-flex items-center gap-3">
-                <Github className="w-9 h-9 md:w-12 md:h-12 text-white/60 inline-block align-middle" aria-hidden="true" />
-                GitHub
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center mb-14 md:mb-16 animate-fade-up">
+            {/* Left — heading, subheading, description */}
+            <div className="text-left">
+              {/* badge */}
+              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/[0.03] text-[10px] uppercase tracking-[0.2em] text-white/40 font-medium mb-6">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#8957E5] animate-pulse" />
+                AI-Powered GitHub Analysis
               </span>
-              <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#58A6FF] via-[#8957E5] to-[#58A6FF] bg-[length:200%] animate-gradient-x">
-                profile in seconds
-              </span>
-            </h1>
 
-            {/* rotating tagline */}
-            <p
-              key={taglineIdx}
-              className="text-sm md:text-base text-white/45 max-w-md mx-auto leading-relaxed animate-fade-in"
-            >
-              {taglines[taglineIdx]}
-            </p>
+              {/* headline — pure white, no gradient */}
+              <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-white leading-[1.05] mb-5">
+                Deep-read any&nbsp;
+                <span className="inline-flex items-center gap-3">
+                  <Github className="w-9 h-9 md:w-11 md:h-11 text-white/60 inline-block align-middle" aria-hidden="true" />
+                  GitHub
+                </span>
+                <br />
+                <span className="text-white">profile in seconds</span>
+              </h1>
 
-            {/* feature chips */}
-            <div className="flex flex-wrap items-center justify-center gap-2 mt-5">
-              <FeatureChip icon={Shield} label="Privacy first" />
-              <FeatureChip icon={Zap} label="No sign-up" />
-              <FeatureChip icon={Users} label="12 AI providers" />
-              <FeatureChip icon={GitBranch} label="Session-only" />
-              <FeatureChip icon={Star} label="Open source" />
+              {/* subheading */}
+              <p key={taglineIdx} className="text-sm md:text-base text-white/50 leading-relaxed mb-4 animate-fade-in">
+                {taglines[taglineIdx]}
+              </p>
+
+              {/* description */}
+              <p className="text-sm md:text-base text-white/35 leading-relaxed max-w-lg">
+                GitDeep reads a GitHub profile the way a senior hiring manager would — repos, commits, stars, language spread, and the story between them — then hands you a brutally honest verdict you can actually act on. No sign-up, no storage. Just the truth.
+              </p>
+
+              {/* feature chips */}
+              <div className="flex flex-wrap items-center gap-2 mt-6">
+                <FeatureChip icon={Shield} label="Privacy first" />
+                <FeatureChip icon={Zap} label="No sign-up" />
+                <FeatureChip icon={Users} label="12 AI providers" />
+                <FeatureChip icon={GitBranch} label="Session-only" />
+                <FeatureChip icon={Star} label="Open source" />
+              </div>
+            </div>
+
+            {/* Right — looping "how it works" flow */}
+            <div className="animate-fade-up delay-150">
+              <HowItWorksFlow />
             </div>
           </div>
 
@@ -245,8 +332,8 @@ export default function Home() {
                           mode === 'developer' ? 'text-[#58A6FF] opacity-100' : 'text-white/20 opacity-0 group-hover:opacity-40'
                         }`} aria-hidden="true" />
                       </div>
-                      <div className="text-sm font-bold text-white mb-1">Developer Mode</div>
-                      <div className="text-xs text-white/40 leading-relaxed">Growth roadmap &amp; mentorship insights</div>
+                      <div className="text-sm font-bold text-white mb-1">Mentor Mode</div>
+                      <div className="text-xs text-white/40 leading-relaxed">What to improve &amp; what to build next</div>
                       {mode === 'developer' && (
                         <div className="absolute bottom-3 right-3 w-5 h-5 rounded-full bg-[#58A6FF] flex items-center justify-center">
                           <div className="w-2 h-2 rounded-full bg-white" />
@@ -264,7 +351,7 @@ export default function Home() {
                   }`}>
                     {mode === 'employer'
                       ? '🔍 Evaluates code quality, project depth, consistency, and red flags a hiring manager cares about.'
-                      : '🚀 Identifies skill gaps, suggests learning paths, and highlights your strongest areas to double down on.'}
+                      : '🚀 Reuses the employer assessment to tell you exactly what to improve, what to learn, and what to build next — no re-scoring.'}
                   </div>
                 </div>
               </div>
@@ -338,30 +425,58 @@ export default function Home() {
 
           </div>
 
-          {/* ── How it works ──────────────────────────────────── */}
-          <div className="mt-10 md:mt-14 animate-fade-up delay-300">
-            <div className="text-center mb-6">
-              <h2 className="text-xs uppercase tracking-[0.25em] text-white/30 font-medium">How it works</h2>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {HOW_IT_WORKS.map(({ step, icon: Icon, title, desc, color, bg }) => (
-                <div key={step} className="double-bezel group hover:scale-[1.02] premium-transition">
-                  <div className="inner">
-                    <div className="flex items-start gap-4">
-                      <div className={`w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center ${bg} premium-transition group-hover:scale-110`}>
-                        <Icon className={`w-5 h-5 ${color}`} aria-hidden="true" />
-                      </div>
-                      <div>
-                        <span className={`text-[10px] font-bold ${color} opacity-60 uppercase tracking-widest`}>{step}</span>
-                        <h3 className="text-sm font-bold text-white mt-0.5 mb-1">{title}</h3>
-                        <p className="text-xs text-white/35 leading-relaxed">{desc}</p>
-                      </div>
+          {/* ── Previous assessments (session cache) ─────────── */}
+          {savedAssessments.length > 0 && (
+            <div className="mt-8 animate-fade-up delay-300">
+              <div className="double-bezel">
+                <div className="inner p-5 md:p-6">
+                  <div className="flex items-start justify-between gap-4 mb-4">
+                    <div>
+                      <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-white/60">Previous Assessments</h2>
+                      <p className="text-[11px] text-white/30 mt-1">Kept in this tab only — close the tab and they&apos;re gone. Nothing is transferred or stored on a server.</p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={clearAssessments}
+                      className="text-[10px] text-white/30 hover:text-[#FF7B72] uppercase tracking-widest premium-transition shrink-0 mt-1"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {savedAssessments.map((c) => {
+                      const isMentor = !!c.assessment.mentorshipPlan;
+                      const score = c.assessment.hirabilityScore ?? 0;
+                      const scoreColor = score >= 7.6 ? 'text-[#46E363]' : score >= 4 ? 'text-[#E3B341]' : 'text-[#FF7B72]';
+                      return (
+                        <button
+                          key={c.username}
+                          onClick={() => router.push(`/assessment?user=${encodeURIComponent(c.username)}&mode=${isMentor ? 'developer' : 'employer'}`)}
+                          className="group flex items-center gap-3 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] hover:border-[#58A6FF]/40 premium-transition text-left"
+                        >
+                          <img src={c.avatarUrl} alt={c.username} width={48} height={48} loading="lazy" className="w-10 h-10 rounded-full border border-white/10 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-white truncate">@{c.username}</span>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded uppercase tracking-wider font-bold shrink-0 ${isMentor ? 'bg-[#58A6FF]/15 text-[#58A6FF]' : 'bg-[#2EA043]/15 text-[#46E363]'}`}>
+                                {isMentor ? 'Mentor' : 'Employer'}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-white/35 line-clamp-2 mt-0.5 leading-snug">{c.assessment.summary || 'Assessment ready.'}</p>
+                          </div>
+                          <div className="flex flex-col items-end gap-0.5 shrink-0">
+                            <span className={`text-lg font-black tabular-nums ${scoreColor}`}>{score.toFixed(1)}</span>
+                            <span className="text-[9px] uppercase tracking-widest text-white/25">/10</span>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/60 premium-transition shrink-0" aria-hidden="true" />
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-              ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* ── Providers footer strip ────────────────────────── */}
           <div className="mt-8 animate-fade-up delay-400">
