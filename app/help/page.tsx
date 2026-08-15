@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Github, Zap, Shield, Target, AlertTriangle, GitCompare, Settings, Code2, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Github, Zap, Shield, Target, AlertTriangle, GitCompare, Settings, Code2, ExternalLink, History } from 'lucide-react';
 
 export default function HelpPage() {
   const router = useRouter();
@@ -27,8 +27,8 @@ export default function HelpPage() {
             <div className="flex items-start gap-3">
               <span className="w-6 h-6 rounded-full bg-[#58A6FF]/20 border border-[#58A6FF]/30 text-[#58A6FF] flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">2</span>
               <div>
-                <span className="text-white font-bold">Developer Mode</span>
-                <p className="text-[#8B949E] text-xs">Same scores as employer mode, but adds a <strong className="text-[#58A6FF]">mentorship plan</strong> with specific upgrade instructions — improving READMEs, reducing arrogance, project suggestions, learning paths.</p>
+                <span className="text-white font-bold">Mentor Mode</span>
+                <p className="text-[#8B949E] text-xs">Same scores as employer mode, but adds a <strong className="text-[#58A6FF]">mentorship plan</strong> with specific upgrade instructions and <strong className="text-[#A371F7]">project ideas</strong> — improving READMEs, reducing arrogance, learning paths. From the employer view, hit <strong className="text-white">&quot;Want guidance?&quot;</strong> to jump here instantly, reusing the assessment already done.</p>
               </div>
             </div>
           </div>
@@ -191,7 +191,7 @@ export default function HelpPage() {
             <p className="text-xs text-[#8B949E]">Found in Settings → <strong className="text-white">Prompt Size</strong>:</p>
             <ul className="text-xs text-[#8B949E] list-disc list-inside mt-1 space-y-0.5">
               <li><strong className="text-[#46E363]">Full (default):</strong> ~1,200 token instruction prompt. In-depth analysis. <strong className="text-white">Required for employer mode.</strong></li>
-              <li><strong className="text-[#E3B341]">Small:</strong> ~400 token instruction prompt. For weak local models only. <strong className="text-[#FF7B72]">Not suitable for employer mode</strong> — use only in developer mode if you have no other option.</li>
+              <li><strong className="text-[#E3B341]">Small:</strong> ~400 token instruction prompt. For weak local models only. <strong className="text-[#FF7B72]">Not suitable for employer mode</strong> — use only in mentor mode if you have no other option.</li>
             </ul>
           </div>
 
@@ -218,26 +218,31 @@ export default function HelpPage() {
       title: 'Score Stability & Accuracy',
       content: (
         <div className="space-y-3 text-sm text-[#C9D1D9] leading-relaxed">
-          <p>The hirability score uses a <strong className="text-white">3-tier band system</strong> to ensure consistency across assessments:</p>
-          <div className="grid grid-cols-3 gap-3 text-xs">
+          <p>The hirability score uses a <strong className="text-white">4-tier band system</strong> — deliberately harsh and grounded in <strong className="text-white">demonstrated skill, never potential</strong>:</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
             <div className="bg-[#F85149]/10 border border-[#F85149]/30 rounded-lg p-3 text-center">
-              <div className="text-2xl font-black text-[#FF7B72]">1-4</div>
-              <div className="text-[#FF7B72] font-bold mt-1">WEAK</div>
-              <p className="text-[10px] text-[#8B949E] mt-1">No PRs, no docs, stale repos, buzzword-heavy</p>
+              <div className="text-2xl font-black text-[#FF7B72]">1.0–3.5</div>
+              <div className="text-[#FF7B72] font-bold mt-1">EMPTY / WEAK</div>
+              <p className="text-[10px] text-[#8B949E] mt-1">Forked everything, no docs, no real work, no signal</p>
             </div>
             <div className="bg-[#E3B341]/10 border border-[#E3B341]/30 rounded-lg p-3 text-center">
-              <div className="text-2xl font-black text-[#E3B341]">5-7</div>
+              <div className="text-2xl font-black text-[#E3B341]">3.6–5.9</div>
               <div className="text-[#E3B341] font-bold mt-1">AVERAGE</div>
-              <p className="text-[10px] text-[#8B949E] mt-1">Some original work, mixed quality, moderate activity</p>
-              <p className="text-[8px] text-[#FF7B72] mt-0.5">(7.0 is banned — uses 6.9 or 7.1)</p>
+              <p className="text-[10px] text-[#8B949E] mt-1">Some original work, mixed quality, moderate activity — the realistic middle</p>
+            </div>
+            <div className="bg-[#E3B341]/10 border border-[#E3B341]/30 rounded-lg p-3 text-center">
+              <div className="text-2xl font-black text-[#E3B341]">6.0–7.5</div>
+              <div className="text-[#E3B341] font-bold mt-1">STRONG</div>
+              <p className="text-[10px] text-[#8B949E] mt-1">Original repos, real READMEs, consistent activity — clearly above the average dev</p>
             </div>
             <div className="bg-[#2EA043]/10 border border-[#2EA043]/30 rounded-lg p-3 text-center">
-              <div className="text-2xl font-black text-[#46E363]">8-10</div>
-              <div className="text-[#46E363] font-bold mt-1">STRONG</div>
-              <p className="text-[10px] text-[#8B949E] mt-1">External PRs, good docs, consistent activity</p>
+              <div className="text-2xl font-black text-[#46E363]">7.6–9.5</div>
+              <div className="text-[#46E363] font-bold mt-1">ELITE</div>
+              <p className="text-[10px] text-[#8B949E] mt-1">Needs ALL hard signals: external PRs, original repos, sustained activity</p>
             </div>
           </div>
-          <p className="text-xs text-[#8B949E]">The AI uses <strong className="text-white">3 hard signals</strong> to determine the tier: (a) merged PRs in external repos, (b) original repos with READMEs, (c) &gt;6 months of consistent activity. The maximum score deviation between assessments of the same profile is <strong className="text-[#E3B341]">±1</strong>. Temperature is locked to 0 for deterministic output.</p>
+          <p className="text-xs text-[#8B949E]">The AI is anchored to reality: <strong className="text-white">9+ means the top ~0.5% of developers</strong>, 8+ means the top ~2%, a real median developer lands around <strong className="text-white">4.5–5.5</strong>, and <strong className="text-white">most profiles score below 6</strong>. A 10 is effectively unreachable, and when in doubt the AI scores <strong className="text-[#FF7B72]">lower</strong>, not higher.</p>
+          <p className="text-xs text-[#8B949E]">The AI uses <strong className="text-white">3 hard signals</strong> to place the band: (a) merged PRs in external repos, (b) original non-fork repos with READMEs, (c) &gt;6 months of consistent activity. It is also bound by <strong className="text-white">mandatory caps</strong>: no external PRs → max 6.9; no original documented repo → max 4.9; 3+ months inactive or declining → max 5.9; no tests anywhere → max 6.9. The maximum score deviation between runs of the same profile is <strong className="text-[#E3B341]">±0.3</strong>.</p>
         </div>
       )
     },
@@ -289,6 +294,46 @@ export default function HelpPage() {
       )
     },
     {
+      id: 'session-cache',
+      icon: <History className="w-5 h-5 text-[#58A6FF]" />,
+      title: 'Saved Assessments (Session Cache)',
+      content: (
+        <div className="space-y-3 text-sm text-[#C9D1D9] leading-relaxed">
+          <p>Every assessment you generate is cached <strong className="text-white">in your browser only</strong>, so you can reopen it without paying for another AI call.</p>
+          <div className="bg-[#0D1117] border border-[#30363D] rounded-lg p-4 space-y-3 text-xs">
+            <div className="flex items-start gap-3">
+              <span className="text-[#46E363] font-bold shrink-0">1.</span>
+              <div>
+                <span className="text-white font-bold">See your history</span>
+                <p className="text-[#8B949E]">The <strong className="text-white">home page</strong> lists every profile assessed this session with its hirability score and mode. Click one to reopen it instantly — the cached result loads without a new AI call.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="text-[#46E363] font-bold shrink-0">2.</span>
+              <div>
+                <span className="text-white font-bold">Reassess for fresh data</span>
+                <p className="text-[#8B949E]">Use <strong className="text-white">&quot;Reassess Profile&quot;</strong> (left sidebar on any assessment) to force a brand-new GitHub fetch + AI run when the profile has changed.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="text-[#FF7B72] font-bold shrink-0">3.</span>
+              <div>
+                <span className="text-white font-bold">Session-only — cannot be transferred</span>
+                <p className="text-[#8B949E]">This cache lives in session storage: it survives reloads while the tab stays open, but <strong className="text-[#FF7B72]">closing the tab or switching browsers/devices wipes it</strong>. Nothing is stored on a server and nothing can be transferred. Use <strong className="text-white">&quot;Export as Markdown&quot;</strong> to keep a permanent copy.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="text-[#46E363] font-bold shrink-0">4.</span>
+              <div>
+                <span className="text-white font-bold">Clear it</span>
+                <p className="text-[#8B949E]">A <strong className="text-white">&quot;Clear all&quot;</strong> button on the home page empties the session cache at any time.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    },
+    {
       id: 'understanding',
       icon: <Zap className="w-5 h-5 text-[#58A6FF]" />,
       title: 'Understanding the Assessment',
@@ -297,11 +342,11 @@ export default function HelpPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
             <div className="bg-[#0D1117] border border-[#30363D] rounded-lg p-3">
               <h4 className="text-white font-bold mb-1">Hirability Score</h4>
-              <p className="text-[#8B949E]">1-10 based on merged PRs, README quality, tech stack coherence, consistency, and originality.</p>
+              <p className="text-[#8B949E]">1-10 based on merged PRs, README quality, tech stack coherence, consistency, and originality. Scored harshly — most profiles sit below 6.</p>
             </div>
             <div className="bg-[#0D1117] border border-[#30363D] rounded-lg p-3">
               <h4 className="text-white font-bold mb-1">SWOT Analysis</h4>
-              <p className="text-[#8B949E]">Strengths, Weaknesses, Opportunities (market factors), Threats. All four are always populated.</p>
+              <p className="text-[#8B949E]">Strengths, Weaknesses, Opportunities (market factors), Threats. All four quadrants are <strong className="text-[#FF7B72]">mandatory</strong> — an assessment missing any one is rejected and retried.</p>
             </div>
             <div className="bg-[#0D1117] border border-[#30363D] rounded-lg p-3">
               <h4 className="text-white font-bold mb-1">Career Slope</h4>
@@ -354,7 +399,8 @@ export default function HelpPage() {
                   ['Rate limited', 'Wait and retry. Add a GitHub PAT token for higher API limits.'],
                   ['Model echoes input', 'The model is too small for this task. Switch to Gemini or Qwen 2.5 7B.'],
                   ['Ollama not connecting', 'Run `ollama serve` in terminal. Check endpoint URL (default: http://localhost:11434). Pull the model first with `ollama pull qwen2.5:7b`.'],
-                  ['No candidates saved', 'Assess some profiles first. They auto-save to session storage after each assessment.'],
+                  ['SWOT incomplete', 'The model returned an assessment missing one of the four SWOT quadrants. Retry — if it persists, switch to a stronger model (Gemini 2.5 Flash or a model with 32K+ context).'],
+                  ['No candidates saved', 'Assess some profiles first. They auto-save to session storage and appear under Previous Assessments on the home page.'],
                   ['Session storage error', 'You are likely in private/incognito browsing mode. Switch to normal mode.'],
                 ].map(([err, fix], i) => (
                   <tr key={i} className="border-b border-[#30363D]">
@@ -397,7 +443,11 @@ export default function HelpPage() {
             </li>
             <li className="flex items-start gap-2">
               <span className="text-[#46E363] font-bold shrink-0">→</span>
-              <span><strong className="text-white">Run multiple assessments</strong> to verify consistency. Score deviation should be at most ±1. If it jumps more, switch to a more capable model.</span>
+              <span><strong className="text-white">Reopen cached assessments</strong> from the Previous Assessments list on the home page — the result loads instantly with no new AI call. Hit <strong className="text-white">Reassess Profile</strong> only when the GitHub profile has actually changed.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-[#46E363] font-bold shrink-0">→</span>
+              <span><strong className="text-white">Run multiple assessments</strong> to verify consistency. Score deviation should be at most ±0.3. If it jumps more, switch to a more capable model.</span>
             </li>
           </ul>
         </div>
@@ -406,7 +456,7 @@ export default function HelpPage() {
   ];
 
   return (
-    <div className="flex-1 min-h-screen bg-[#0D1117] pb-20">
+    <div className="flex-1 min-h-screen pb-20">
       <header className="bg-[#161B22] border-b border-[#30363D] sticky top-0 z-40 shadow-md">
         <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
