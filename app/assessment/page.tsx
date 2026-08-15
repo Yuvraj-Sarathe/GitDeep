@@ -2,12 +2,14 @@
 
 import React, { useEffect, useState, Suspense, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { fetchGitHubProfile, UserAssessmentData } from '@/lib/github';
-import { generateAssessment, AssessmentMode, AssessmentResult, compareCandidates, ComparisonCandidate, ComparisonResult } from '@/lib/ai';
+import { generateAssessment, generateMentorship, AssessmentMode, AssessmentResult, compareCandidates, ComparisonCandidate, ComparisonResult } from '@/lib/ai';
 import { assessmentToMarkdown, buildExportFilename, downloadMarkdown } from '@/lib/exportMarkdown';
 import { useStore } from '@/lib/store';
 import { SettingsModal } from '@/components/SettingsModal';
-import { ArrowLeft, Loader2, Send, Linkedin, Twitter, Target, Zap, Shield, AlertTriangle, Code2, Instagram, ExternalLink, GitCompare, Download, X, Check, HelpCircle } from 'lucide-react';
+import ErrorTicket from '@/components/ErrorTicket';
+import { ArrowLeft, Loader2, Send, Linkedin, Twitter, Target, Zap, Shield, AlertTriangle, Code2, Instagram, ExternalLink, GitCompare, Download, X, Check, RefreshCw, HelpCircle } from 'lucide-react';
 import { AiLoadingNote } from '@/components/AiLoadingNote';
 import ReactMarkdown from 'react-markdown';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend } from 'recharts';
@@ -36,46 +38,103 @@ function AssessmentContent() {
   const [addingToCompare, setAddingToCompare] = useState(false);
   const [dismissedWarning, setDismissedWarning] = useState(false);
   const [exported, setExported] = useState(false);
+  const [mentorLoading, setMentorLoading] = useState(false);
+  const [errorTicket, setErrorTicket] = useState<{ title: string; message: string; venue: string; gate: string } | null>(null);
+
+  // While the mentor plan is being generated, the page keeps showing Employer
+  // Mode; only when the complete result is ready does it flip to Mentor Mode.
+  const displayMode = mentorLoading ? 'employer' : mode;
+
+  const showErrorTicket = (title: string, venue: string, message: string) =>
+    setErrorTicket({
+      title,
+      venue,
+      message,
+      gate: mode === 'developer' ? 'Mentor Gate' : 'Employer Gate',
+    });
   const showCompletenessWarning = useMemo(() => {
     if (!assessment || dismissedWarning) return false;
     return !assessment.summary || assessment.summary.length < 20 ||
       !assessment.detailedReport || assessment.detailedReport.length < 200 ||
       !assessment.repoAssessments || assessment.repoAssessments.length === 0 ||
       !assessment.timeline || assessment.timeline.length === 0 ||
-      !assessment.swot.strengths || assessment.swot.strengths.length === 0;
+      !assessment.swot.strengths || assessment.swot.strengths.length === 0 ||
+      !assessment.swot.weaknesses || assessment.swot.weaknesses.length === 0 ||
+      !assessment.swot.opportunities || assessment.swot.opportunities.length === 0 ||
+      !assessment.swot.threats || assessment.swot.threats.length === 0;
   }, [assessment, dismissedWarning]);
 
-  useEffect(() => {
-    if (!username) return;
+  const failAssessment = (err: any) => {
+    console.error(err);
+    const msg = err.message || 'An unknown error occurred. Make sure your API keys and endpoints are correct.';
+    setError(msg);
+    setErrorTicket({ title: 'ASSESSMENT FAILED', message: msg, venue: 'Assessment Engine', gate: mode === 'developer' ? 'Mentor Gate' : 'Employer Gate' });
+  };
 
-    async function fetchData() {
-      setLoading(true);
-      setError(null);
-      try {
-        const ghData = await fetchGitHubProfile(username!, settings.githubToken);
-        setGithubData(ghData);
+  // Always runs a fresh AI assessment (Reassess Profile button).
+  const runAssessment = async (targetUser: string | null) => {
+    if (!targetUser) return;
+    setLoading(true);
+    setError(null);
+    setErrorTicket(null);
+    try {
+      const ghData = await fetchGitHubProfile(targetUser, settings.githubToken);
+      setGithubData(ghData);
 
-        const aiResponse = await generateAssessment(ghData, settings, mode);
-        setAssessment(aiResponse);
+      const aiResponse = await generateAssessment(ghData, settings, mode);
+      setAssessment(aiResponse);
 
-        const stored: ComparisonCandidate[] = JSON.parse(sessionStorage.getItem('assessedCandidates') || '[]');
-        const entry: ComparisonCandidate = { username: ghData.username, avatarUrl: ghData.avatarUrl, assessment: aiResponse };
-        const idx = stored.findIndex((c: ComparisonCandidate) => c.username === ghData.username);
-        if (idx >= 0) stored[idx] = entry; else stored.push(entry);
-        try { sessionStorage.setItem('assessedCandidates', JSON.stringify(stored)); } catch {}
-        setSavedCandidates(stored);
-        
-      } catch (err: any) {
-        console.error(err);
-        setError(err.message || 'An unknown error occurred. Make sure your API keys and endpoints are correct.');
-      } finally {
-        setLoading(false);
-      }
+      const stored: ComparisonCandidate[] = JSON.parse(sessionStorage.getItem('assessedCandidates') || '[]');
+      const entry: ComparisonCandidate = { username: ghData.username, avatarUrl: ghData.avatarUrl, assessment: aiResponse };
+      const idx = stored.findIndex((c: ComparisonCandidate) => c.username === ghData.username);
+      if (idx >= 0) stored[idx] = entry; else stored.push(entry);
+      try { sessionStorage.setItem('assessedCandidates', JSON.stringify(stored)); } catch {}
+      setSavedCandidates(stored);
+    } catch (err: any) {
+      failAssessment(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // On mount: reuse this tab's cached assessment when one exists (no AI call —
+  // only GitHub data is refreshed for rendering). Otherwise run a fresh one.
+  const loadAssessment = async (targetUser: string | null) => {
+    if (!targetUser) return;
+
+    let cached: ComparisonCandidate | undefined;
+    try {
+      const stored: ComparisonCandidate[] = JSON.parse(sessionStorage.getItem('assessedCandidates') || '[]');
+      cached = stored.find((c) => c.username.toLowerCase() === targetUser.toLowerCase());
+      setSavedCandidates(stored);
+    } catch {
+      setSavedCandidates([]);
     }
 
-    fetchData();
+    if (!cached) {
+      await runAssessment(targetUser);
+      return;
+    }
+
+    setAssessment(cached.assessment);
+    setLoading(true);
+    setError(null);
+    setErrorTicket(null);
+    try {
+      const ghData = await fetchGitHubProfile(targetUser, settings.githubToken);
+      setGithubData(ghData);
+    } catch (err: any) {
+      failAssessment(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (username) loadAssessment(username);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [username, mode, settings.githubToken, settings.aiProvider, settings.apiKey, settings.apiEndpoint, settings.model]);
+  }, [username, settings.githubToken, settings.aiProvider, settings.apiKey, settings.apiEndpoint, settings.model]);
 
 
   const handleAskQuestion = async (e: React.FormEvent) => {
@@ -94,7 +153,7 @@ function AssessmentContent() {
       });
       setCustomQuestion('');
     } catch (err: any) {
-      alert("Error asking question: " + err.message);
+      showErrorTicket('QUERY FAILED', 'Profile Q&A', err.message);
     } finally {
       setAskingQuestion(false);
     }
@@ -109,7 +168,34 @@ function AssessmentContent() {
       setExported(true);
       setTimeout(() => setExported(false), 2000);
     } catch (err: any) {
-      alert("Error exporting report: " + err.message);
+      showErrorTicket('EXPORT FAILED', 'Report Export', err.message);
+    }
+  };
+
+  const handleGoToMentor = async () => {
+    if (!githubData || !assessment || mentorLoading) return;
+    setMentorLoading(true);
+    router.replace(`/assessment?user=${encodeURIComponent(username || '')}&mode=developer`, { scroll: false });
+    try {
+      // Reuse the employer assessment as ground truth — the mentor only
+      // generates improvement steps + project ideas, no re-scoring.
+      const mentor = await generateMentorship(githubData, settings, assessment);
+      const merged = { ...assessment, ...mentor };
+      setAssessment(merged);
+      // Keep the session cache in sync so the mentor plan survives a tab reload.
+      try {
+        const stored: ComparisonCandidate[] = JSON.parse(sessionStorage.getItem('assessedCandidates') || '[]');
+        const idx = stored.findIndex((c: ComparisonCandidate) => c.username === githubData.username);
+        if (idx >= 0) stored[idx] = { ...stored[idx], assessment: merged };
+        else stored.push({ username: githubData.username, avatarUrl: githubData.avatarUrl, assessment: merged });
+        try { sessionStorage.setItem('assessedCandidates', JSON.stringify(stored)); } catch {}
+        setSavedCandidates(stored);
+      } catch {}
+      setTimeout(() => document.getElementById('mentor-plan')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+    } catch (err: any) {
+      showErrorTicket('MENTORSHIP FAILED', 'Mentor Engine', err.message);
+    } finally {
+      setMentorLoading(false);
     }
   };
 
@@ -130,7 +216,7 @@ function AssessmentContent() {
       setSelectedForCompare(prev => [...prev, ghData.username]);
       setNewCompareUser('');
     } catch (err: any) {
-      alert('Failed to assess: ' + err.message);
+      showErrorTicket('ASSESSMENT FAILED', 'Assessment Engine', err.message);
     } finally {
       setAddingToCompare(false);
     }
@@ -188,9 +274,21 @@ function AssessmentContent() {
     },
   };
 
+  const errorTicketEl = (
+    <ErrorTicket
+      open={!!errorTicket}
+      title={errorTicket?.title || ''}
+      message={errorTicket?.message || ''}
+      subject={username || undefined}
+      venue={errorTicket?.venue || ''}
+      gate={errorTicket?.gate || undefined}
+      onClose={() => setErrorTicket(null)}
+    />
+  );
+
   if (loading) {
     return (
-      <div className="flex-1 min-h-screen bg-[#0D1117] pb-20">
+      <div className="flex-1 min-h-screen pb-20">
         <header className="bg-[#161B22] border-b border-[#30363D] sticky top-0 z-40 shadow-md">
           <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -272,19 +370,19 @@ function AssessmentContent() {
 
   if (error) {
     return (
-      <div className="flex-1 min-h-screen bg-[#0D1117] flex flex-col items-center justify-center max-w-2xl mx-auto text-center px-4">
-        <div className="bg-[#F85149]/20 text-[#F85149] p-6 rounded-xl border border-[#F85149]/50 mb-6 w-full shadow-[0_0_15px_rgba(248,81,73,0.1)]">
-          <h2 className="font-bold text-lg mb-2 font-mono flex items-center justify-center gap-2">
-            <AlertTriangle className="w-5 h-5" aria-hidden="true"/> ANALYSIS FAILED
-          </h2>
-          <p className="font-mono text-sm">{error}</p>
+      <div className="flex-1 min-h-screen flex flex-col items-center justify-center max-w-2xl mx-auto text-center px-4">
+        <div className="flex items-center gap-3 mb-6">
+          <Link href="/" className="flex items-center gap-2 bg-[#21262D] hover:bg-[#30363D] border border-[#30363D] text-[#C9D1D9] font-medium px-5 py-2 rounded-lg transition-colors">
+            Home
+          </Link>
+          <Link href="/settings" className="flex items-center gap-2 bg-[#21262D] hover:bg-[#30363D] border border-[#30363D] text-[#C9D1D9] font-medium px-5 py-2 rounded-lg transition-colors">
+            Settings
+          </Link>
+          <Link href="/help" className="flex items-center gap-2 bg-[#21262D] hover:bg-[#30363D] border border-[#30363D] text-[#C9D1D9] font-medium px-5 py-2 rounded-lg transition-colors">
+            Help
+          </Link>
         </div>
-        <div className="flex items-center gap-3">
-          <button onClick={() => router.push('/')} className="flex items-center gap-2 text-[#8B949E] hover:text-white font-medium transition-colors">
-            <ArrowLeft className="w-4 h-4" aria-hidden="true" /> Go Back
-          </button>
-          <SettingsModal />
-        </div>
+        {errorTicketEl}
       </div>
     );
   }
@@ -318,7 +416,7 @@ function AssessmentContent() {
   ];
 
   return (
-    <div className="min-h-dvh lg:h-dvh flex flex-col bg-[#0D1117]">
+    <div className="min-h-dvh lg:h-dvh flex flex-col">
       <header className="bg-[#161B22] border-b border-[#30363D] shrink-0 z-40 shadow-md">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -329,8 +427,8 @@ function AssessmentContent() {
               <h1 className="font-bold text-lg text-white truncate font-mono">
                 {githubData.name || githubData.username}
               </h1>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${mode === 'employer' ? 'bg-[#238636] border-[#2EA043] text-white' : 'bg-[#1F6FEB]/20 border-[#1F6FEB]/50 text-[#58A6FF]'}`}>
-                {mode === 'employer' ? 'Employer Mode' : 'Developer Mode'}
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${displayMode === 'employer' ? 'bg-[#238636] border-[#2EA043] text-white' : 'bg-[#1F6FEB]/20 border-[#1F6FEB]/50 text-[#58A6FF]'}`}>
+                {displayMode === 'employer' ? 'Employer Mode' : 'Mentor Mode'}
               </span>
             </div>
           </div>
@@ -343,6 +441,33 @@ function AssessmentContent() {
           </div>
         </div>
       </header>
+
+      {/* Profile stats strip — full width so every value is always readable */}
+      <div className="max-w-7xl mx-auto w-full px-4 pt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+          <div className="bg-[#161B22] border border-[#2EA043]/40 rounded-lg px-4 py-3 flex items-center justify-between gap-3 min-w-0" title="Overall hireability rating (0-10)">
+            <span className="text-[10px] text-[#8B949E] font-bold uppercase tracking-widest shrink-0">Hirability Score</span>
+            <span className="text-white font-black text-2xl font-mono tabular-nums truncate">
+              {typeof assessment.hirabilityScore === 'number' && !Number.isNaN(assessment.hirabilityScore)
+                ? (assessment.hirabilityScore > 10 ? assessment.hirabilityScore / 10 : assessment.hirabilityScore).toFixed(1)
+                : '—'}
+              <span className="text-[#2EA043] text-sm">/10</span>
+            </span>
+          </div>
+          <div className="bg-[#161B22] border border-[#30363D] rounded-lg px-4 py-3 flex items-center justify-between gap-3 min-w-0" title={`${githubData.totalStars} total stars`}>
+            <span className="text-[10px] text-[#8B949E] font-bold uppercase tracking-widest shrink-0">Total Stars</span>
+            <span className="text-[#E3B341] font-bold text-sm font-mono tabular-nums truncate">{githubData.totalStars}</span>
+          </div>
+          <div className="bg-[#161B22] border border-[#30363D] rounded-lg px-4 py-3 flex items-center justify-between gap-3 min-w-0" title={`${githubData.totalPrs} merged pull requests`}>
+            <span className="text-[10px] text-[#8B949E] font-bold uppercase tracking-widest shrink-0">Merged PRs</span>
+            <span className="text-[#A371F7] font-bold text-sm font-mono tabular-nums truncate">{githubData.totalPrs}</span>
+          </div>
+          <div className="bg-[#161B22] border border-[#30363D] rounded-lg px-4 py-3 flex items-center justify-between gap-3 min-w-0" title={`Account created ${new Date(githubData.createdAt).getFullYear()}`}>
+            <span className="text-[10px] text-[#8B949E] font-bold uppercase tracking-widest shrink-0">Account Age</span>
+            <span className="text-[#58A6FF] font-bold text-sm font-mono tabular-nums truncate">{Math.max(0, new Date().getFullYear() - new Date(githubData.createdAt).getFullYear())} Years</span>
+          </div>
+        </div>
+      </div>
 
       {showCompletenessWarning && (
         <div className="max-w-7xl mx-auto px-4 pt-4">
@@ -363,72 +488,8 @@ function AssessmentContent() {
 
       <main className="flex-1 lg:overflow-hidden max-w-7xl mx-auto w-full px-4 py-6 md:py-8 grid grid-cols-1 lg:grid-cols-12 gap-6 relative">
         
-        {/* Left Sidebar: Profile & Hirability */}
-        <aside className="lg:col-span-3 flex flex-col gap-6 lg:overflow-y-auto lg:min-h-0 overscroll-behavior-contain">
-          <div className="bg-[#161B22] border border-[#30363D] rounded-xl p-6 shadow-xl relative overflow-hidden group hover:border-[#8B949E] transition-colors">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#2EA043] via-[#58A6FF] to-[#8957E5]"></div>
-            
-            <div className="mb-4 pb-4 border-b border-[#30363D]">
-              <span className="text-[10px] text-[#8B949E] font-bold uppercase tracking-widest block mb-1">GitHub Bio</span>
-              <p className="text-xs text-[#C9D1D9] italic">
-                {githubData.bio ? `"${githubData.bio}"` : "No bio provided."}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 mb-4 pb-4 border-b border-[#30363D]">
-               <div className="bg-[#0D1117] border border-[#30363D] rounded p-2 text-center">
-                  <span className="block text-[9px] text-[#8B949E] uppercase mb-1">Total Stars</span>
-                  <span className="text-[#E3B341] font-bold text-sm font-mono">{githubData.totalStars}</span>
-               </div>
-               <div className="bg-[#0D1117] border border-[#30363D] rounded p-2 text-center">
-                  <span className="block text-[9px] text-[#8B949E] uppercase mb-1">Merged PRs</span>
-                  <span className="text-[#A371F7] font-bold text-sm font-mono">{githubData.totalPrs}</span>
-               </div>
-               <div className="bg-[#0D1117] border border-[#30363D] rounded p-2 text-center col-span-2">
-                  <span className="block text-[9px] text-[#8B949E] uppercase mb-1">Account Age</span>
-                  <span className="text-[#58A6FF] font-bold text-sm font-mono">{Math.max(0, new Date().getFullYear() - new Date(githubData.createdAt).getFullYear())} Years</span>
-               </div>
-            </div>
-
-            <div className="flex flex-col mb-4">
-              <h1 className="text-xs font-bold uppercase tracking-widest text-[#8B949E] mb-1">Hirability Score</h1>
-              <div className="flex items-end gap-1">
-                <div className="text-6xl font-mono font-black text-white">{assessment.hirabilityScore > 10 ? (assessment.hirabilityScore / 10).toFixed(1) : parseFloat(assessment.hirabilityScore.toString()).toFixed(1)}</div>
-                <div className="text-xl text-[#2EA043] font-mono pb-1">/ 10</div>
-              </div>
-            </div>
-
-            <div className="space-y-4 text-xs">
-              <div>
-                <span className="text-[#8B949E] uppercase font-bold text-[10px] block mb-1">Suited Roles</span>
-                <div className="flex gap-1 flex-wrap">
-                  {assessment.hirabilityRoles?.map(r => (
-                    <span key={r} className="px-2 py-0.5 bg-[#2EA043]/10 border border-[#2EA043]/30 text-[#46E363] rounded tracking-tight">{r}</span>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <span className="text-[#8B949E] uppercase font-bold text-[10px] block mb-1">Not Suited</span>
-                <div className="flex gap-1 flex-wrap">
-                  {assessment.notSuitedRoles?.map(r => (
-                    <span key={r} className="px-2 py-0.5 bg-[#F85149]/10 border border-[#F85149]/30 text-[#FF7B72] rounded tracking-tight">{r}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 pt-4 border-t border-[#30363D]">
-              <span className="text-[#8B949E] uppercase font-bold text-[10px] block mb-2">Developer Tags</span>
-              <div className="flex gap-2 flex-wrap">
-                {assessment.tags?.map(tag => (
-                  <span key={tag} className="px-2 py-1 bg-[#1F2428] border border-[#30363D] text-[#C9D1D9] text-[10px] rounded uppercase font-bold tracking-widest">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-            </div>
-
+        {/* Left Sidebar: Export, Compare, Mentor & Contact */}
+        <aside className="lg:col-span-3 flex flex-col gap-6 lg:overflow-y-auto lg:min-h-0 min-w-0 overscroll-behavior-contain">
           <div className="bg-[#161B22] border border-[#30363D] rounded-xl p-5 shadow-lg">
             <button
               onClick={handleExportMarkdown}
@@ -447,7 +508,19 @@ function AssessmentContent() {
             </button>
           </div>
 
-          {mode === 'employer' && (
+          <div className="bg-[#161B22] border border-[#30363D] rounded-xl p-5 shadow-lg">
+            <button
+              onClick={() => runAssessment(username)}
+              disabled={loading || mentorLoading}
+              aria-label="Re-run the assessment for this GitHub profile"
+              className="w-full flex items-center justify-center gap-2 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] text-[#C9D1D9] text-xs font-bold py-3 px-4 rounded-lg transition-colors uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="w-4 h-4" aria-hidden="true" />}
+              {loading ? 'Reassessing…' : 'Reassess Profile'}
+            </button>
+          </div>
+
+          {displayMode === 'employer' && (
             <div className="bg-[#161B22] border border-[#30363D] rounded-xl p-5 shadow-lg">
               <button
                 onClick={() => { setShowCompare(true); setComparisonResult(null); setSelectedForCompare([]); }}
@@ -455,6 +528,29 @@ function AssessmentContent() {
               >
                 <GitCompare className="w-4 h-4" aria-hidden="true" /> Compare Candidates
                 {savedCandidates.length > 0 && <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px]">{savedCandidates.length} saved</span>}
+              </button>
+            </div>
+          )}
+
+          {(displayMode === 'employer' || (displayMode === 'developer' && !assessment.mentorshipPlan && !mentorLoading)) && (
+            <div className="bg-[#161B22] border border-[#1F6FEB]/40 rounded-xl p-5 shadow-lg">
+              <div className="flex items-start gap-2 mb-3">
+                <Zap className="w-4 h-4 text-[#58A6FF] shrink-0 mt-0.5" aria-hidden="true" />
+                <p className="text-xs text-[#8B949E] leading-relaxed">
+                  {displayMode === 'employer' ? (
+                    <><strong className="text-[#58A6FF]">Want guidance?</strong> Click here — Mentor Mode opens for the same developer, reusing this assessment to focus purely on how to improve, what to learn, and what to build next.</>
+                  ) : (
+                    <><strong className="text-[#58A6FF]">No mentor plan yet.</strong> The assessment is here — generate the improvement steps and project ideas from it.</>
+                  )}
+                </p>
+              </div>
+              <button
+                onClick={handleGoToMentor}
+                disabled={mentorLoading}
+                className="w-full flex items-center justify-center gap-2 bg-[#1F6FEB]/20 hover:bg-[#1F6FEB]/30 border border-[#1F6FEB]/50 text-[#58A6FF] text-xs font-bold py-3 px-4 rounded-lg transition-colors uppercase tracking-widest disabled:opacity-50"
+              >
+                {mentorLoading ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Zap className="w-4 h-4" aria-hidden="true" />}
+                {mentorLoading ? 'Building your plan…' : (displayMode === 'employer' ? 'Open Mentor Mode' : 'Retry Mentor Plan')}
               </button>
             </div>
           )}
@@ -540,25 +636,33 @@ function AssessmentContent() {
               <div className="bg-[#2EA043]/10 border border-[#2EA043]/30 rounded-lg p-4">
                 <h4 className="text-[#46E363] text-xs font-bold uppercase mb-2">Strengths</h4>
                 <ul className="text-xs text-[#C9D1D9] space-y-1 list-disc list-inside">
-                  {assessment.swot.strengths?.map((t, idx) => <li key={idx} className="break-words">{t}</li>)}
+                  {assessment.swot.strengths && assessment.swot.strengths.length > 0
+                    ? assessment.swot.strengths.map((t, idx) => <li key={idx} className="break-words">{t}</li>)
+                    : <li className="italic text-[#8B949E]">None identified</li>}
                 </ul>
               </div>
               <div className="bg-[#F85149]/10 border border-[#F85149]/30 rounded-lg p-4">
                 <h4 className="text-[#FF7B72] text-xs font-bold uppercase mb-2">Weaknesses</h4>
                 <ul className="text-xs text-[#C9D1D9] space-y-1 list-disc list-inside">
-                  {assessment.swot.weaknesses?.map((t, idx) => <li key={idx} className="break-words">{t}</li>)}
+                  {assessment.swot.weaknesses && assessment.swot.weaknesses.length > 0
+                    ? assessment.swot.weaknesses.map((t, idx) => <li key={idx} className="break-words">{t}</li>)
+                    : <li className="italic text-[#8B949E]">None identified</li>}
                 </ul>
               </div>
               <div className="bg-[#58A6FF]/10 border border-[#58A6FF]/30 rounded-lg p-4">
                 <h4 className="text-[#79C0FF] text-xs font-bold uppercase mb-2">Opportunities</h4>
                 <ul className="text-xs text-[#C9D1D9] space-y-1 list-disc list-inside">
-                  {assessment.swot.opportunities?.map((t, idx) => <li key={idx} className="break-words">{t}</li>)}
+                  {assessment.swot.opportunities && assessment.swot.opportunities.length > 0
+                    ? assessment.swot.opportunities.map((t, idx) => <li key={idx} className="break-words">{t}</li>)
+                    : <li className="italic text-[#8B949E]">None identified</li>}
                 </ul>
               </div>
               <div className="bg-[#8957E5]/10 border border-[#8957E5]/30 rounded-lg p-4">
                 <h4 className="text-[#A371F7] text-xs font-bold uppercase mb-2">Threats</h4>
                 <ul className="text-xs text-[#C9D1D9] space-y-1 list-disc list-inside">
-                  {assessment.swot.threats?.map((t, idx) => <li key={idx} className="break-words">{t}</li>)}
+                  {assessment.swot.threats && assessment.swot.threats.length > 0
+                    ? assessment.swot.threats.map((t, idx) => <li key={idx} className="break-words">{t}</li>)
+                    : <li className="italic text-[#8B949E]">None identified</li>}
                 </ul>
               </div>
             </div>
@@ -692,8 +796,21 @@ function AssessmentContent() {
             </div>
           </div>
 
-          {assessment.mentorshipPlan && mode === 'developer' && (
-            <div className="bg-[#161B22] border border-[#1F6FEB]/50 rounded-xl shadow-2xl overflow-hidden">
+          {mentorLoading && (
+            <div className="bg-[#161B22] border border-[#1F6FEB]/50 rounded-xl p-8 shadow-2xl">
+              <div className="flex items-center gap-3 mb-4">
+                <Loader2 className="w-5 h-5 text-[#58A6FF] animate-spin" aria-hidden="true" />
+                <h2 className="text-sm font-bold text-white uppercase tracking-widest font-mono">Building Your Mentor Plan</h2>
+              </div>
+              <p className="text-xs text-[#8B949E] mb-6">Reusing the employer assessment — no re-scoring. Auditing the repo portfolio and crafting improvement steps, project ideas, and growth tactics tailored to the weaknesses already found…</p>
+              <div className="h-1 bg-[#21262D] rounded-full overflow-hidden relative">
+                <div className="absolute top-0 bottom-0 w-1/3 rounded-full bg-gradient-to-r from-[#1F6FEB] via-[#58A6FF] to-[#A371F7] animate-mentor-progress"></div>
+              </div>
+            </div>
+          )}
+
+          {assessment.mentorshipPlan && displayMode === 'developer' && (
+            <div id="mentor-plan" className="bg-[#161B22] border border-[#1F6FEB]/50 rounded-xl shadow-2xl overflow-hidden">
               <div className="p-4 border-b border-[#1F6FEB]/30 bg-[#1F6FEB]/10 sticky top-0 z-10 flex items-center gap-2">
                 <Zap className="w-4 h-4 text-[#58A6FF]" aria-hidden="true" />
                 <h2 className="text-sm font-bold text-white uppercase tracking-widest font-mono">Mentorship & Upgrade Plan</h2>
@@ -706,45 +823,76 @@ function AssessmentContent() {
             </div>
           )}
 
+          {assessment.projectIdeas && assessment.projectIdeas.length > 0 && displayMode === 'developer' && (
+            <div className="bg-[#161B22] border border-[#8957E5]/50 rounded-xl shadow-2xl overflow-hidden">
+              <div className="p-4 border-b border-[#8957E5]/30 bg-[#8957E5]/10 sticky top-0 z-10 flex items-center gap-2">
+                <Code2 className="w-4 h-4 text-[#A371F7]" aria-hidden="true" />
+                <h2 className="text-sm font-bold text-white uppercase tracking-widest font-mono">Project Ideas to Build</h2>
+              </div>
+              <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                {assessment.projectIdeas.map((idea, idx) => (
+                  <div key={idx} className="bg-[#0D1117] border border-[#30363D] rounded-xl p-4 flex flex-col">
+                    <span className="text-[10px] text-[#A371F7] font-mono mb-1">IDEA {idx + 1}</span>
+                    <h3 className="text-sm font-bold text-white mb-2">{idea.title}</h3>
+                    <p className="text-xs text-[#8B949E] leading-relaxed flex-1">{idea.description}</p>
+                    <div className="flex flex-wrap gap-1 mt-3">
+                      {(idea.techStack || []).map((t, i) => (
+                        <span key={i} className="text-[10px] px-1.5 py-0.5 bg-[#8957E5]/10 text-[#A371F7] border border-[#8957E5]/20 rounded">{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
         </section>
 
         {/* Right Sidebar: Radars & Langs & Ask */}
-        <aside className="lg:col-span-3 space-y-6 lg:overflow-y-auto lg:min-h-0 overscroll-behavior-contain pb-6 lg:pb-0">
+        <aside className="lg:col-span-3 space-y-6 lg:overflow-y-auto lg:min-h-0 min-w-0 overscroll-behavior-contain pb-6 lg:pb-0">
           <div className="bg-[#161B22] border border-[#30363D] rounded-xl p-4 shadow-lg text-center">
             <h3 className="font-bold text-white text-xs uppercase mb-1 tracking-widest"><Shield className="w-4 h-4 inline pb-0.5 text-[#2EA043]" aria-hidden="true"/> Core Competencies</h3>
             <p className="text-[10px] text-[#8B949E] mb-2">Capabilities based on profile</p>
-            <div className="h-48">
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart outerRadius={60} data={strengthRadarData}>
-                  <PolarGrid stroke="#30363D" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#8B949E', fontSize: 10 }} />
-                  <Radar name="Strength" dataKey="A" stroke="#2EA043" fill="#2EA043" fillOpacity={0.4} />
-                  <Tooltip contentStyle={{ backgroundColor: '#161B22', borderColor: '#30363D', color: '#fff' }} />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
+            {strengthRadarData.some(d => typeof d.A === 'number' && d.A > 0) ? (
+              <div className="h-48 w-full min-w-0">
+                <ResponsiveContainer width="100%" height="100%" minWidth={220}>
+                  <RadarChart outerRadius={55} data={strengthRadarData}>
+                    <PolarGrid stroke="#30363D" />
+                    <PolarAngleAxis dataKey="subject" tick={{ fill: '#8B949E', fontSize: 10 }} />
+                    <Radar name="Strength" dataKey="A" stroke="#2EA043" fill="#2EA043" fillOpacity={0.4} />
+                    <Tooltip contentStyle={{ backgroundColor: '#161B22', borderColor: '#30363D', color: '#fff' }} />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <p className="text-xs text-[#8B949E] py-16">No competency data returned.</p>
+            )}
           </div>
 
           <div className="bg-[#161B22] border border-[#30363D] rounded-xl p-4 shadow-lg text-center">
             <h3 className="font-bold text-[#FF7B72] text-xs uppercase mb-1 tracking-widest"><AlertTriangle className="w-4 h-4 inline pb-0.5" aria-hidden="true"/> Risk Factors</h3>
             <p className="text-[10px] text-[#8B949E] mb-2">Vulnerabilities in behavior/code</p>
-            <div className="h-48">
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart outerRadius={60} data={weaknessRadarData}>
-                  <PolarGrid stroke="#30363D" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#8B949E', fontSize: 10 }} />
-                  <Radar name="Weakness" dataKey="A" stroke="#F85149" fill="#F85149" fillOpacity={0.4} />
-                  <Tooltip contentStyle={{ backgroundColor: '#161B22', borderColor: '#30363D', color: '#fff' }} />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
+            {weaknessRadarData.some(d => typeof d.A === 'number' && d.A > 0) ? (
+              <div className="h-48 w-full min-w-0">
+                <ResponsiveContainer width="100%" height="100%" minWidth={220}>
+                  <RadarChart outerRadius={55} data={weaknessRadarData}>
+                    <PolarGrid stroke="#30363D" />
+                    <PolarAngleAxis dataKey="subject" tick={{ fill: '#8B949E', fontSize: 10 }} />
+                    <Radar name="Weakness" dataKey="A" stroke="#F85149" fill="#F85149" fillOpacity={0.4} />
+                    <Tooltip contentStyle={{ backgroundColor: '#161B22', borderColor: '#30363D', color: '#fff' }} />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <p className="text-xs text-[#8B949E] py-16">No risk data returned.</p>
+            )}
           </div>
 
           <div className="bg-[#161B22] border border-[#30363D] rounded-xl p-4 shadow-lg">
             <h3 className="font-bold text-white text-xs uppercase mb-1 tracking-widest text-center">Language Distribution</h3>
             {langData.length > 0 ? (
-              <div className="h-48 mt-2">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="h-48 mt-2 w-full min-w-0">
+                <ResponsiveContainer width="100%" height="100%" minWidth={220}>
                   <PieChart>
                     <Pie
                       data={langData}
@@ -893,7 +1041,7 @@ function AssessmentContent() {
                           const result = await compareCandidates(selected, settings, compareQuestion);
                           setComparisonResult(result);
                         } catch (err: any) {
-                          alert("Comparison failed: " + err.message);
+                          showErrorTicket('COMPARISON FAILED', 'Candidate Compare', err.message);
                         } finally {
                           setComparing(false);
                         }
@@ -1008,7 +1156,7 @@ function AssessmentContent() {
                           const result = await compareCandidates(selected, settings, compareQuestion);
                           setComparisonResult(result);
                         } catch (err: any) {
-                          alert("Comparison failed: " + err.message);
+                          showErrorTicket('COMPARISON FAILED', 'Candidate Compare', err.message);
                         } finally {
                           setComparing(false);
                         }
@@ -1033,6 +1181,7 @@ function AssessmentContent() {
       )}
 
       <SettingsModal />
+      {errorTicketEl}
     </div>
   );
 }
@@ -1040,7 +1189,7 @@ function AssessmentContent() {
 export default function Assessment() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-[#0D1117] flex justify-center items-center px-4">
+      <div className="min-h-screen flex justify-center items-center px-4">
         <AiLoadingNote variant="inline" />
       </div>
     }>
