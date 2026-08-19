@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { checkStarrer } from '@/lib/starCheckServer';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,7 +61,16 @@ export async function POST(request: NextRequest) {
     }
 
     const user = await userRes.json();
-    return NextResponse.json({ username: user.login as string });
+    const username: string = user.login as string;
+
+    // Identity and star status are both decided server-side. The star check
+    // runs as the repo owner (stargazer list lookup), never as the visitor.
+    const star = await checkStarrer(username);
+    return NextResponse.json({
+      username,
+      starred: star.starred,
+      starMessage: star.message,
+    });
   } catch (err: any) {
     console.error('OAuth exchange error:', err);
     return NextResponse.json(

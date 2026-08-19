@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useStore } from '@/lib/store';
-import { checkStarStatus, SHARED_REPO_OWNER, SHARED_REPO_NAME, SHARED_REPO_URL } from '@/lib/sharedKey';
+import { SHARED_REPO_OWNER, SHARED_REPO_NAME, SHARED_REPO_URL } from '@/lib/sharedKey';
 import { validateStarState, getPendingStarReturn, clearStarPending, setStarRunPending } from '@/lib/starAuth';
 import { Loader2, Star, Check, AlertTriangle } from 'lucide-react';
 
@@ -58,9 +58,10 @@ export default function StarCallbackPage() {
         }
         const username: string = data.username;
 
-        const star = await checkStarStatus(username);
-        if (!star.starred) {
-          setDetail(star.message || `@${username} has not starred the repo yet.`);
+        // The star status is decided server-side (as the repo owner) during
+        // the exchange — GitHub no longer answers unauthenticated star checks.
+        if (!data.starred) {
+          setDetail(data.starMessage || `@${username} has not starred ${SHARED_REPO_OWNER}/${SHARED_REPO_NAME} yet.`);
           clearStarPending();
           setPhase('denied');
           return;

@@ -86,29 +86,3 @@ export function recordSharedKeyCall(estimatedTokens: number): void {
   entries.push({ t: Date.now(), tokens: estimatedTokens });
   writeUsage(entries.filter(e => e.t >= dayStart())); // prune anything older than today
 }
-
-export interface StarCheckResult {
-  starred: boolean;
-  message?: string;
-}
-
-// Unauthenticated GitHub star check: 204 = starred, 404 = not starred.
-export async function checkStarStatus(username: string): Promise<StarCheckResult> {
-  // The repo owner can never star their own repository (GitHub rule — the API
-  // always answers 404), but the Free Key is theirs anyway: exempt them.
-  if (username.trim().toLowerCase() === SHARED_REPO_OWNER.toLowerCase()) {
-    return { starred: true };
-  }
-  const res = await fetch(
-    `https://api.github.com/users/${encodeURIComponent(username)}/starred/${SHARED_REPO_OWNER}/${SHARED_REPO_NAME}`,
-    { headers: { Accept: 'application/vnd.github+json' } }
-  );
-  if (res.status === 204) return { starred: true };
-  if (res.status === 404) {
-    return { starred: false, message: `@${username} has not starred ${SHARED_REPO_OWNER}/${SHARED_REPO_NAME} yet.` };
-  }
-  if (res.status === 403 || res.status === 429) {
-    return { starred: false, message: 'GitHub is rate-limiting star checks right now — wait a minute and try again.' };
-  }
-  return { starred: false, message: `Star check failed (${res.status}). Try again.` };
-}
