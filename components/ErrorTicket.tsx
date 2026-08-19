@@ -1,5 +1,8 @@
+"use client";
+
 import { memo, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 
 import './ErrorTicket.css';
@@ -11,6 +14,8 @@ interface ErrorTicketProps {
   subject?: string;
   venue?: string;
   gate?: string;
+  /** When true, the X button navigates to the home page instead of dismissing. */
+  closeToHome?: boolean;
   onClose: () => void;
 }
 
@@ -21,8 +26,10 @@ const ErrorTicket = memo<ErrorTicketProps>(({
   subject,
   venue = 'GitDeep Engine',
   gate,
+  closeToHome = false,
   onClose,
 }) => {
+  const router = useRouter();
   // Deterministic per-message code shown on the ticket (barcode id + stack hex).
   const [code] = useState(() => {
     let h = 0;
@@ -97,7 +104,7 @@ const ErrorTicket = memo<ErrorTicketProps>(({
             <Link href="/help" className="ticket-nav-btn">Help</Link>
           </div>
         </div>
-        <button type="button" className="ticket-close" onClick={onClose} aria-label="Dismiss error">
+        <button type="button" className="ticket-close" onClick={() => (closeToHome ? router.push('/') : onClose())} aria-label={closeToHome ? 'Go to home page' : 'Dismiss error'}>
           <X className="w-4 h-4" aria-hidden="true" />
         </button>
       </div>
