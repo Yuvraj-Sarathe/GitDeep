@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   title: 'GitDeep — AI GitHub Profile Assessor',
   description: 'Brutal, honest AI analysis of any developer\'s GitHub profile.',
   icons: {
-    icon: '/icon.svg',
+    icon: '/icon.png',
   },
 };
 
