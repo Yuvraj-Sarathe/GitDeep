@@ -2,7 +2,8 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Github, Zap, Shield, Target, AlertTriangle, GitCompare, Settings, Code2, ExternalLink, History } from 'lucide-react';
+import { ArrowLeft, Github, Zap, Shield, Target, AlertTriangle, GitCompare, Settings, Code2, ExternalLink, History, Star } from 'lucide-react';
+import { SHARED_REPO_OWNER, SHARED_REPO_NAME, SHARED_REPO_URL, SHARED_KEY_RPM_LIMIT, SHARED_KEY_RPD_LIMIT } from '@/lib/sharedKey';
 
 export default function HelpPage() {
   const router = useRouter();
@@ -49,7 +50,7 @@ export default function HelpPage() {
               <li>Go to <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-[#58A6FF] hover:underline">Google AI Studio</a></li>
               <li>Click &quot;Get API Key&quot; → Create API key (free tier works)</li>
               <li>Paste the key in Settings → API Key field</li>
-              <li>Model: <code className="text-[#E3B341]">gemini-2.5-flash</code> (default, fast, 1M context)</li>
+              <li>Model: <code className="text-[#E3B341]">gemini-3.6-flash</code> (default, fast, 1M context)</li>
             </ol>
           </div>
 
@@ -84,6 +85,44 @@ export default function HelpPage() {
               <li>Paste in Settings → GitHub PAT Token field</li>
               <li>Benefits: higher API rate limits, private repo analysis</li>
             </ol>
+          </div>
+        </div>
+      )
+    },
+    {
+      id: 'free-key',
+      icon: <Star className="w-5 h-5 text-[#E3B341]" />,
+      title: 'GitDeep Free Key (Star to Unlock)',
+      content: (
+        <div className="space-y-3 text-sm text-[#C9D1D9] leading-relaxed">
+          <p>No API key? GitDeep can run assessments with the project&apos;s own Gemini key — free, if you support the project with a star.</p>
+          <div className="bg-[#0D1117] border border-[#30363D] rounded-lg p-4 space-y-3 text-xs">
+            <div className="flex items-start gap-3">
+              <span className="w-6 h-6 rounded-full bg-[#E3B341]/15 border border-[#E3B341]/30 text-[#E3B341] flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">1</span>
+              <div>
+                <span className="text-white font-bold">Star the repo</span>
+                <p className="text-[#8B949E]">Star <a href={SHARED_REPO_URL} target="_blank" rel="noopener noreferrer" className="text-[#E3B341] hover:underline font-mono">{SHARED_REPO_OWNER}/{SHARED_REPO_NAME}</a> on GitHub.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="w-6 h-6 rounded-full bg-[#E3B341]/15 border border-[#E3B341]/30 text-[#E3B341] flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">2</span>
+              <div>
+                <span className="text-white font-bold">Verify with GitHub</span>
+                <p className="text-[#8B949E]">Click <strong className="text-white">&quot;Continue with GitHub&quot;</strong> — a standard OAuth login with <strong className="text-white">read-only profile access</strong>. Your username is taken from the OAuth token (never typed in), so nobody can claim a starrer&apos;s account. The token is exchanged on the server and discarded — nothing is stored.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="w-6 h-6 rounded-full bg-[#E3B341]/15 border border-[#E3B341]/30 text-[#E3B341] flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">3</span>
+              <div>
+                <span className="text-white font-bold">Assess free</span>
+                <p className="text-[#8B949E]">The Free Key activates automatically — assessments run on the project&apos;s Gemini key with no key of your own.</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-[#E3B341]/10 border border-[#E3B341]/30 rounded-lg p-4">
+            <h4 className="text-[#E3B341] font-bold mb-1 flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> Shared, rate-limited, and busy under load</h4>
+            <p className="text-xs text-[#8B949E]">The Free Key is a pool of shared Gemini keys, capped at <strong className="text-white">{SHARED_KEY_RPM_LIMIT} requests/minute</strong> and <strong className="text-white">{SHARED_KEY_RPD_LIMIT} requests/day</strong> per key, auto-rotating across the shared pool when one gets busy. Under heavy traffic you may see a &quot;busy&quot; error — <strong className="text-white">wait a minute and retry</strong>.</p>
+            <p className="text-xs text-[#8B949E] mt-2"><strong className="text-white">Bring Your Own Key (BYOK):</strong> Settings → AI Provider → pick <strong className="text-white">Gemini API</strong> (or any other provider), paste your own key, and you&apos;re never subject to the shared pool&apos;s limits.</p>
           </div>
         </div>
       )
@@ -148,7 +187,7 @@ export default function HelpPage() {
               <tbody>
                 <tr className="border-b border-[#30363D] bg-[#2EA043]/5">
                   <td className="p-3 text-white font-bold">Best Overall</td>
-                  <td className="p-3">Gemini 2.5 Flash (free tier)</td>
+                  <td className="p-3">Gemini 3.6 Flash (free tier)</td>
                   <td className="p-3"><span className="px-2 py-0.5 bg-[#2EA043]/10 text-[#46E363] rounded text-[10px] font-bold">Full</span></td>
                   <td className="p-3"><span className="text-[#46E363] font-bold">Yes ✅</span></td>
                 </tr>
@@ -393,13 +432,15 @@ export default function HelpPage() {
               <tbody>
                 {[
                   ['AI timed out', 'Switch to Gemini cloud or a larger local model (Qwen 2.5 7B, Mistral 7B). Small models are too slow for this task.'],
-                  ['Prompt exceeds context', 'Switch to Gemini 2.5 Flash (1M tokens). Or use the Small prompt size setting for limited models.'],
+                  ['Free Key says busy / overloaded', 'The shared Gemini key pool is under heavy traffic. Wait a minute and retry — or add your own key in Settings (BYOK) for unlimited use.'],
+                  ['Star verification failed', 'Make sure you starred the repo from the GitHub account you signed in with, then click Continue with GitHub again.'],
+                  ['Prompt exceeds context', 'Switch to Gemini 3.6 Flash (1M tokens). Or use the Small prompt size setting for limited models.'],
                   ['Invalid JSON from AI', 'Switch to Gemini API (native JSON schema enforcement). Most reliable for structured output.'],
                   ['401 Unauthorized', 'Check that your API key in Settings is correct and has not expired.'],
                   ['Rate limited', 'Wait and retry. Add a GitHub PAT token for higher API limits.'],
                   ['Model echoes input', 'The model is too small for this task. Switch to Gemini or Qwen 2.5 7B.'],
                   ['Ollama not connecting', 'Run `ollama serve` in terminal. Check endpoint URL (default: http://localhost:11434). Pull the model first with `ollama pull qwen2.5:7b`.'],
-                  ['SWOT incomplete', 'The model returned an assessment missing one of the four SWOT quadrants. Retry — if it persists, switch to a stronger model (Gemini 2.5 Flash or a model with 32K+ context).'],
+                  ['SWOT incomplete', 'The model returned an assessment missing one of the four SWOT quadrants. Retry — if it persists, switch to a stronger model (Gemini 3.6 Flash or a model with 32K+ context).'],
                   ['No candidates saved', 'Assess some profiles first. They auto-save to session storage and appear under Previous Assessments on the home page.'],
                   ['Session storage error', 'You are likely in private/incognito browsing mode. Switch to normal mode.'],
                 ].map(([err, fix], i) => (
@@ -423,7 +464,7 @@ export default function HelpPage() {
           <ul className="space-y-2 text-xs">
             <li className="flex items-start gap-2">
               <span className="text-[#46E363] font-bold shrink-0">→</span>
-              <span><strong className="text-white">Use cloud models</strong> for the most accurate assessments. Gemini 2.5 Flash has a free tier and handles the full prompt effortlessly.</span>
+              <span><strong className="text-white">Use cloud models</strong> for the most accurate assessments. Gemini 3.6 Flash has a free tier and handles the full prompt effortlessly.</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-[#46E363] font-bold shrink-0">→</span>

@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { UserAssessmentData } from './github';
 import { AppSettings } from './types';
+import { checkSharedKeyLimit, recordSharedKeyCall } from './sharedKey';
 
 export type AssessmentMode = 'employer' | 'developer';
 
@@ -154,11 +155,18 @@ const MENTORSHIP_SYSTEM_PROMPT = "You are a professional GitHub Auditor turned B
 
 async function callGemini(apiKey: string, model: string, systemMsg: string, userPrompt: string, schema: any): Promise<string> {
   const ai = new GoogleGenAI({ apiKey });
-  const response = await ai.models.generateContent({
-    model,
-    contents: userPrompt,
-    config: { temperature: 0, topP: 1, topK: 1, systemInstruction: systemMsg, responseMimeType: "application/json", responseSchema: schema }
-  });
+  // Race against a hard timeout — a hung request must never leave the page
+  // stuck on the loading animation forever.
+  const response = await Promise.race([
+    ai.models.generateContent({
+      model,
+      contents: userPrompt,
+      config: { temperature: 0, topP: 1, topK: 1, systemInstruction: systemMsg, responseMimeType: "application/json", responseSchema: schema }
+    }),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Gemini request timed out after 150s. Check your key and network, then try again.')), 150000)
+    ),
+  ]);
   return response.text || '{}';
 }
 
@@ -209,12 +217,14 @@ async function callOpenAICompatible(endpoint: string, apiKey: string, model: str
 }
 
 function getAISuggestion(error: Error, provider: string): string {
+  // Shared-key errors are already written for the user — pass them through.
+  if (provider === 'shared-gemini') return error.message;
   const msg = error.message.toLowerCase();
   if (msg.includes('timeout') || msg.includes('abort') || msg.includes('timed out')) {
     return `AI timed out. Switch to Gemini API or a larger local model like mistral or qwen2.5:7b.`;
   }
   if (msg.includes('413') || msg.includes('payload') || msg.includes('too large') || msg.includes('context length') || msg.includes('maximum context')) {
-    return `Prompt exceeds context window. Switch to Gemini 2.5 Flash (1M tokens) or a model with 32K+ context.`;
+    return `Prompt exceeds context window. Switch to Gemini 3.6 Flash (1M tokens) or a model with 32K+ context.`;
   }
   if (msg.includes('json') || msg.includes('parse') || msg.includes('malformed')) {
     return `AI returned invalid JSON. Switch to Gemini API for native schema enforcement, or use a larger model.`;
@@ -231,14 +241,50 @@ function getAISuggestion(error: Error, provider: string): string {
   return error.message;
 }
 
+// Errors worth rolling to the next shared key: traffic/quota overloads and
+// bad-key auth failures. Anything else (malformed response, etc.) won't be
+// fixed by switching keys, so it's rethrown immediately.
+function isRetryableGeminiError(err: any): boolean {
+  const msg = (err?.message || '').toLowerCase();
+  return /429|500|502|503|529|resource_exhausted|quota|rate limit|rate_limit|overloaded|unavailable|too many requests|temporar|api key not valid|invalid api key|unauthorized|401/.test(msg);
+}
+
 async function callAI(settings: AppSettings, systemMsg: string, userPrompt: string, provider: 'assessment' | 'comparison' | 'mentorship'): Promise<string> {
   const providerType = settings.aiProvider;
   const schema = provider === 'assessment' ? assessmentSchema : provider === 'comparison' ? comparisonSchema : mentorshipSchema;
   switch (providerType) {
     case 'gemini': {
       const key = settings.apiKey || process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
-      if (!key) throw new Error('Gemini API key is required.');
-      return callGemini(key, settings.model || 'gemini-2.5-flash', systemMsg, userPrompt, schema);
+      if (!key) throw new Error('Gemini API key is required. No key? Star the repo on the home page to unlock the GitDeep Free Key.');
+      return callGemini(key, settings.model || 'gemini-3.6-flash', systemMsg, userPrompt, schema);
+    }
+    case 'shared-gemini': {
+      if (!settings.sharedKeyVerified || !settings.sharedKeyUsername) {
+        throw new Error('GitDeep Free Key is locked — star the repository first. Open Settings → GitDeep Free Key to verify your star.');
+      }
+      const model = settings.model || 'gemini-3.6-flash';
+      const estimatedTokens = Math.ceil((systemMsg.length + userPrompt.length) / 4);
+      // Local budget check gives instant feedback without a round-trip; the
+      // server proxy enforces the authoritative per-key budgets.
+      const budget = checkSharedKeyLimit(estimatedTokens);
+      if (!budget.allowed) throw new Error(budget.reason);
+      const res = await fetch('/api/gemini-shared', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, systemInstruction: systemMsg, prompt: userPrompt, schema, estimatedTokens }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const message = data.error || `Free Key request failed (${res.status}).`;
+        // Traffic/quota failures (429/5xx/overloaded) mean "try again shortly";
+        // anything else is a real config problem and gets passed through.
+        if (isRetryableGeminiError({ message })) {
+          throw new Error('GitDeep Free Key is overloaded right now — try again in a moment, or add your own key in Settings.');
+        }
+        throw new Error(message);
+      }
+      recordSharedKeyCall(estimatedTokens);
+      return data.response || '{}';
     }
     case 'ollama': {
       if (!settings.apiEndpoint) throw new Error('Ollama endpoint is required.');
@@ -277,7 +323,7 @@ export async function generateAssessment(
     const result = normalizeAssessment(parsed);
     const validation = validateAssessmentComplete(result);
     if (!validation.complete) {
-      throw new Error(`Assessment incomplete: ${validation.reason}. Switch to Gemini 2.5 Flash or a model with 32K+ context for complete results.`);
+      throw new Error(`Assessment incomplete: ${validation.reason}. Switch to Gemini 3.6 Flash or a model with 32K+ context for complete results.`);
     }
     return result;
   } catch (e: any) {

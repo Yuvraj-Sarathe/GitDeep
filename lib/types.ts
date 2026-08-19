@@ -1,5 +1,6 @@
 export type AIProvider =
   | 'gemini'
+  | 'shared-gemini'
   | 'ollama'
   | 'openai'
   | 'anthropic'
@@ -26,7 +27,8 @@ export interface AIProviderInfo {
 }
 
 export const AI_PROVIDERS: AIProviderInfo[] = [
-  { id: 'gemini', label: 'Gemini API', defaultEndpoint: '', defaultModel: 'gemini-2.5-flash', docsUrl: 'https://aistudio.google.com/apikey', needsKey: true, needsEndpoint: false, isOpenAICompatible: false },
+  { id: 'gemini', label: 'Gemini API', defaultEndpoint: '', defaultModel: 'gemini-3.6-flash', docsUrl: 'https://aistudio.google.com/apikey', needsKey: true, needsEndpoint: false, isOpenAICompatible: false },
+  { id: 'shared-gemini', label: 'GitDeep Free Key (Star)', defaultEndpoint: '', defaultModel: 'gemini-3.6-flash', docsUrl: '', needsKey: false, needsEndpoint: false, isOpenAICompatible: false },
   { id: 'ollama', label: 'Local Ollama', defaultEndpoint: 'http://localhost:11434', defaultModel: 'llama3.2', docsUrl: '', needsKey: false, needsEndpoint: true, isOpenAICompatible: false },
   { id: 'openai', label: 'OpenAI', defaultEndpoint: 'https://api.openai.com/v1/chat/completions', defaultModel: 'gpt-4o', docsUrl: 'https://platform.openai.com/api-keys', needsKey: true, needsEndpoint: true, isOpenAICompatible: true },
   { id: 'anthropic', label: 'Anthropic', defaultEndpoint: 'https://api.anthropic.com/v1/messages', defaultModel: 'claude-sonnet-4-20250514', docsUrl: 'https://console.anthropic.com/settings/keys', needsKey: true, needsEndpoint: false, isOpenAICompatible: false },
@@ -47,6 +49,8 @@ export interface AppSettings {
   apiEndpoint: string;
   model: string;
   promptSize: PromptSize;
+  sharedKeyVerified: boolean;
+  sharedKeyUsername: string;
 }
 
 export const defaultSettings: AppSettings = {
@@ -54,6 +58,8 @@ export const defaultSettings: AppSettings = {
   aiProvider: 'gemini',
   apiKey: '',
   apiEndpoint: '',
-  model: 'gemini-2.5-flash',
+  model: 'gemini-3.6-flash',
   promptSize: 'full',
+  sharedKeyVerified: false,
+  sharedKeyUsername: '',
 };

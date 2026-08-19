@@ -7,8 +7,10 @@ import { fetchGitHubProfile, UserAssessmentData } from '@/lib/github';
 import { generateAssessment, generateMentorship, AssessmentMode, AssessmentResult, compareCandidates, ComparisonCandidate, ComparisonResult } from '@/lib/ai';
 import { assessmentToMarkdown, buildExportFilename, downloadMarkdown } from '@/lib/exportMarkdown';
 import { useStore } from '@/lib/store';
+import { takeStarRunPending } from '@/lib/starAuth';
 import { SettingsModal } from '@/components/SettingsModal';
 import ErrorTicket from '@/components/ErrorTicket';
+import StarVerifyModal from '@/components/StarVerifyModal';
 import { ArrowLeft, Loader2, Send, Linkedin, Twitter, Target, Zap, Shield, AlertTriangle, Code2, Instagram, ExternalLink, GitCompare, Download, X, Check, RefreshCw, HelpCircle } from 'lucide-react';
 import { AiLoadingNote } from '@/components/AiLoadingNote';
 import ReactMarkdown from 'react-markdown';
@@ -40,6 +42,8 @@ function AssessmentContent() {
   const [exported, setExported] = useState(false);
   const [mentorLoading, setMentorLoading] = useState(false);
   const [errorTicket, setErrorTicket] = useState<{ title: string; message: string; venue: string; gate: string } | null>(null);
+  const [starModalOpen, setStarModalOpen] = useState(false);
+  const [starModalAction, setStarModalAction] = useState<'run' | 'none'>('none');
 
   // While the mentor plan is being generated, the page keeps showing Employer
   // Mode; only when the complete result is ready does it flip to Mentor Mode.
@@ -71,9 +75,24 @@ function AssessmentContent() {
     setErrorTicket({ title: 'ASSESSMENT FAILED', message: msg, venue: 'Assessment Engine', gate: mode === 'developer' ? 'Mentor Gate' : 'Employer Gate' });
   };
 
+  // Shared Free Key gate: block any AI call until the user verifies their star
+  // in the pop-up. Also catches the default setup (Gemini provider, no key) so
+  // deep links never dead-end on "Gemini API key is required". Returns true
+  // when blocked (caller must stop).
+  const requireStarVerification = (action: 'run' | 'none'): boolean => {
+    const noKeyGemini = settings.aiProvider === 'gemini' && !settings.apiKey && !process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    if ((settings.aiProvider === 'shared-gemini' && !settings.sharedKeyVerified) || noKeyGemini) {
+      setStarModalAction(action);
+      setStarModalOpen(true);
+      return true;
+    }
+    return false;
+  };
+
   // Always runs a fresh AI assessment (Reassess Profile button).
   const runAssessment = async (targetUser: string | null) => {
     if (!targetUser) return;
+    if (requireStarVerification('run')) return;
     setLoading(true);
     setError(null);
     setErrorTicket(null);
@@ -131,8 +150,21 @@ function AssessmentContent() {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (username) loadAssessment(username);
+    if (username) {
+      // Coming back from the OAuth star-verify with a pending run: the callback
+      // page already activated the Free Key, so kick the assessment off now.
+      const start = async () => {
+        if (takeStarRunPending()) {
+          // Defer one microtask: runAssessment can open the star gate, and a
+          // modal must not pop synchronously out of the effect body.
+          await Promise.resolve();
+          runAssessment(username);
+        } else {
+          await loadAssessment(username);
+        }
+      };
+      start();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [username, settings.githubToken, settings.aiProvider, settings.apiKey, settings.apiEndpoint, settings.model]);
 
@@ -140,7 +172,7 @@ function AssessmentContent() {
   const handleAskQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customQuestion.trim() || !githubData) return;
-    
+    if (requireStarVerification('none')) return;
     setAskingQuestion(true);
     try {
       const response = await generateAssessment(githubData, settings, mode, customQuestion);
@@ -174,6 +206,7 @@ function AssessmentContent() {
 
   const handleGoToMentor = async () => {
     if (!githubData || !assessment || mentorLoading) return;
+    if (requireStarVerification('none')) return;
     setMentorLoading(true);
     router.replace(`/assessment?user=${encodeURIComponent(username || '')}&mode=developer`, { scroll: false });
     try {
@@ -201,6 +234,7 @@ function AssessmentContent() {
 
   const handleAddToCompare = async () => {
     if (!newCompareUser.trim()) return;
+    if (requireStarVerification('none')) return;
     setAddingToCompare(true);
     try {
       const ghData = await fetchGitHubProfile(newCompareUser.trim(), settings.githubToken);
@@ -282,6 +316,7 @@ function AssessmentContent() {
       subject={username || undefined}
       venue={errorTicket?.venue || ''}
       gate={errorTicket?.gate || undefined}
+      closeToHome={!!error}
       onClose={() => setErrorTicket(null)}
     />
   );
@@ -476,7 +511,7 @@ function AssessmentContent() {
               <span className="text-[#E3B341] text-lg leading-none mt-0.5" aria-hidden="true">⚠</span>
               <div>
                 <p className="text-sm font-bold text-[#E3B341]">Some assessment sections may be incomplete</p>
-                <p className="text-xs text-[#C9D1D9] mt-1">For best results, use Gemini 2.5 Flash (1M context) or a model with 32K+ context and high token output limits. <a href="/settings" className="text-[#58A6FF] hover:underline">Adjust settings</a></p>
+                <p className="text-xs text-[#C9D1D9] mt-1">For best results, use Gemini 3.6 Flash (1M context) or a model with 32K+ context and high token output limits. <a href="/settings" className="text-[#58A6FF] hover:underline">Adjust settings</a></p>
               </div>
             </div>
             <button onClick={() => setDismissedWarning(true)} className="p-1 hover:bg-[#E3B341]/20 rounded transition-colors text-[#E3B341]/60 hover:text-[#E3B341]" aria-label="Dismiss warning">
@@ -1182,6 +1217,11 @@ function AssessmentContent() {
 
       <SettingsModal />
       {errorTicketEl}
+      <StarVerifyModal
+        open={starModalOpen}
+        onClose={() => { setStarModalOpen(false); setStarModalAction('none'); }}
+        pendingAction={starModalAction}
+      />
     </div>
   );
 }

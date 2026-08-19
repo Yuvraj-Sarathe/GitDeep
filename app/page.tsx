@@ -2,12 +2,16 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   Search, Briefcase, Code, HelpCircle, ArrowUpRight,
   Github, Zap, Shield, Users, GitBranch, Star, Terminal,
-  ChevronRight,
+  ChevronRight, Check,
 } from 'lucide-react';
 import { SettingsModal } from '@/components/SettingsModal';
+import { useStore } from '@/lib/store';
+import { SHARED_KEY_RPM_LIMIT } from '@/lib/sharedKey';
+import StarVerifyModal from '@/components/StarVerifyModal';
 import Image from 'next/image';
 import logo from './logo.png';
 import type { ComparisonCandidate } from '@/lib/ai';
@@ -139,10 +143,17 @@ function HowItWorksFlow() {
 
 export default function Home() {
   const router = useRouter();
+  const { settings } = useStore();
   const [username, setUsername] = useState('');
   const [mode, setMode] = useState<'employer' | 'developer'>('employer');
   const [taglineIdx, setTaglineIdx] = useState(0);
   const [savedAssessments, setSavedAssessments] = useState<ComparisonCandidate[]>([]);
+  const [starModalOpen, setStarModalOpen] = useState(false);
+
+  // No API key configured → invite the visitor to star the repo and use the
+  // GitDeep Free Key. Hidden when they already have a key (or a keyless setup).
+  const freeKeyActive = settings.aiProvider === 'shared-gemini' && settings.sharedKeyVerified;
+  const needsFreeKeySection = !settings.apiKey && !freeKeyActive && !(settings.aiProvider === 'ollama' && settings.apiEndpoint);
 
   // Read this tab's session cache: previously generated assessments.
   useEffect(() => {
@@ -244,7 +255,7 @@ export default function Home() {
               <div className="flex flex-wrap items-center gap-2 mt-6">
                 <FeatureChip icon={Shield} label="Privacy first" />
                 <FeatureChip icon={Zap} label="No sign-up" />
-                <FeatureChip icon={Users} label="12 AI providers" />
+                <FeatureChip icon={Users} label="13 AI providers" />
                 <FeatureChip icon={GitBranch} label="Session-only" />
                 <FeatureChip icon={Star} label="Open source" />
               </div>
@@ -256,12 +267,70 @@ export default function Home() {
             </div>
           </div>
 
+          {/* ── Free Key section — no API key? star to unlock ── */}
+          {needsFreeKeySection && (
+            <div className="animate-fade-up delay-75 mb-8 md:mb-10">
+              <div className="double-bezel relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-[#E3B341]/[0.07] via-transparent to-[#8957E5]/[0.07] pointer-events-none" />
+                <div className="inner relative">
+                  <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-6">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="w-8 h-8 rounded-xl bg-[#E3B341]/10 border border-[#E3B341]/25 flex items-center justify-center shrink-0">
+                          <Star className="w-4 h-4 text-[#E3B341]" aria-hidden="true" />
+                        </span>
+                        <h2 className="text-sm font-bold text-white uppercase tracking-wider">No API key? Star the repo — get a free assessment</h2>
+                      </div>
+                      <p className="text-xs text-white/40 leading-relaxed">
+                        The <span className="text-white/70 font-semibold">GitDeep Free Key</span> runs assessments with the project&apos;s own Gemini key.
+                        Star the repo on GitHub, verify once, and it activates automatically — no key, no sign-up.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setStarModalOpen(true)}
+                      className="shrink-0 flex items-center gap-2 px-5 py-3 rounded-xl bg-[#E3B341]/10 border border-[#E3B341]/30 text-[#E3B341] text-xs font-bold uppercase tracking-wider hover:bg-[#E3B341]/20 premium-transition btn-press"
+                    >
+                      <Star className="w-3.5 h-3.5" aria-hidden="true" />
+                      Star &amp; Verify
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {freeKeyActive && (
+            <div className="animate-fade-up delay-75 mb-8 md:mb-10">
+              <div className="double-bezel">
+                <div className="inner">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs text-white/50 flex items-center gap-2">
+                        <Check className="w-4 h-4 text-[#46E363]" aria-hidden="true" />
+                        <span>
+                          GitDeep Free Key active — <span className="text-white/80 font-semibold">@{settings.sharedKeyUsername}</span>. Star verified.
+                        </span>
+                      </p>
+                      <p className="text-[10px] text-white/30 mt-1.5">
+                        Shared key is capped at {SHARED_KEY_RPM_LIMIT} req/min — under heavy traffic, wait a minute or use your own key in Settings.
+                      </p>
+                    </div>
+                    <Link href="/settings" className="text-[10px] uppercase tracking-widest text-white/30 hover:text-white premium-transition">
+                      Manage in Settings
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ── Stats bar ─────────────────────────────────────── */}
           <div className="animate-fade-up delay-100 mb-8 md:mb-10">
             <div className="double-bezel">
               <div className="inner !py-0 !px-0">
                 <div className="flex flex-wrap justify-center divide-x divide-white/[0.06]">
-                  <StatPill value="12+" label="AI Providers" color="text-[#58A6FF]" />
+                  <StatPill value="13" label="AI Providers" color="text-[#58A6FF]" />
                   <StatPill value="2" label="Analysis Modes" color="text-[#8957E5]" />
                   <StatPill value="100%" label="Open Source" color="text-[#2EA043]" />
                   <StatPill value="0" label="Data Stored" color="text-white/60" />
@@ -512,7 +581,7 @@ export default function Home() {
                     href="/settings"
                     className="text-[10px] text-white/25 hover:text-[#58A6FF] premium-transition flex items-center gap-0.5"
                   >
-                    12 providers <ChevronRight className="w-3 h-3" aria-hidden="true" />
+                    13 providers <ChevronRight className="w-3 h-3" aria-hidden="true" />
                   </a>
                 </div>
               </div>
@@ -521,6 +590,12 @@ export default function Home() {
 
         </div>
       </div>
+
+      <StarVerifyModal
+        open={starModalOpen}
+        onClose={() => setStarModalOpen(false)}
+        pendingAction="none"
+      />
     </>
   );
 }

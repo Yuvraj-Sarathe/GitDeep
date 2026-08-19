@@ -4,12 +4,15 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { AI_PROVIDERS, AIProvider, PromptSize } from '@/lib/types';
-import { ArrowLeft, Settings, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Settings, ExternalLink, Star, Check } from 'lucide-react';
+import { SHARED_REPO_OWNER, SHARED_REPO_NAME, SHARED_REPO_URL, SHARED_KEY_RPM_LIMIT, SHARED_KEY_RPD_LIMIT } from '@/lib/sharedKey';
+import StarVerifyModal from '@/components/StarVerifyModal';
 
 export default function SettingsPage() {
   const router = useRouter();
   const { settings, updateSettings } = useStore();
   const [localSettings, setLocalSettings] = useState(settings);
+  const [starModalOpen, setStarModalOpen] = useState(false);
 
   const handleProviderChange = (providerId: AIProvider) => {
     const info = AI_PROVIDERS.find(p => p.id === providerId);
@@ -19,14 +22,25 @@ export default function SettingsPage() {
       apiEndpoint: info?.defaultEndpoint || '',
       model: info?.defaultModel || '',
     }));
-  };
-
-  const handleSave = () => {
-    updateSettings(localSettings);
-    router.back();
+    if (providerId === 'shared-gemini' && !settings.sharedKeyVerified) setStarModalOpen(true);
   };
 
   const currentProvider = AI_PROVIDERS.find(p => p.id === localSettings.aiProvider) || AI_PROVIDERS[0];
+
+  const handleRevokeStar = () => {
+    updateSettings({ sharedKeyVerified: false, sharedKeyUsername: '' });
+    setLocalSettings(prev => ({ ...prev, sharedKeyVerified: false, sharedKeyUsername: '' }));
+  };
+
+  const handleSave = () => {
+    if (localSettings.aiProvider === 'shared-gemini' && !settings.sharedKeyVerified) {
+      // Unlock via the verify modal — the Free Key stays locked until then.
+      setStarModalOpen(true);
+      return;
+    }
+    updateSettings(localSettings);
+    router.back();
+  };
 
   return (
     <div className="flex-1 min-h-[100dvh]">
@@ -69,6 +83,47 @@ export default function SettingsPage() {
                 placeholder="ghp_..."
               />
               <p className="text-[10px] text-white/30 mt-1.5">Needed for private repos or higher API rate limits.</p>
+            </div>
+          </div>
+
+          {/* GitDeep Free Key — star to unlock */}
+          <div className="double-bezel">
+            <div className="inner">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-medium text-white/60 uppercase tracking-wider flex items-center gap-2">
+                  <Star className="w-3.5 h-3.5 text-[#E3B341]" /> GitDeep Free Key
+                </label>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${localSettings.aiProvider === 'shared-gemini' ? 'bg-[#E3B341]/15 text-[#E3B341]' : 'bg-white/[0.04] text-white/30'}`}>
+                  {localSettings.aiProvider === 'shared-gemini' ? 'Selected' : 'Optional'}
+                </span>
+              </div>
+              <p className="text-xs text-white/40 mb-3 leading-relaxed">
+                Star <a href={SHARED_REPO_URL} target="_blank" rel="noopener noreferrer" className="text-[#E3B341] hover:underline font-mono">{SHARED_REPO_OWNER}/{SHARED_REPO_NAME}</a> on GitHub and use the project&apos;s own Gemini key — no key of your own needed. Limited to <strong className="text-white/70">{SHARED_KEY_RPM_LIMIT} req/min</strong> and <strong className="text-white/70">{SHARED_KEY_RPD_LIMIT} req/day</strong> per key, auto-rotating across the shared pool when busy.
+              </p>
+
+              {settings.sharedKeyVerified ? (
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-[#2EA043]/30 bg-[#2EA043]/[0.06] px-3 py-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Check className="w-4 h-4 text-[#46E363] shrink-0" />
+                    <span className="text-sm text-white/80 truncate">Star verified — @{settings.sharedKeyUsername}</span>
+                  </div>
+                  <button type="button" onClick={handleRevokeStar} className="text-[10px] uppercase tracking-widest text-white/30 hover:text-[#FF7B72] premium-transition shrink-0">Revoke</button>
+                </div>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setStarModalOpen(true)}
+                    className="flex items-center gap-2 px-4 py-3 rounded-xl bg-[#E3B341]/10 border border-[#E3B341]/30 text-[#E3B341] text-xs font-bold uppercase tracking-wider hover:bg-[#E3B341]/20 premium-transition btn-press"
+                  >
+                    <Star className="w-3.5 h-3.5" />
+                    Verify with GitHub
+                  </button>
+                  <p className="text-[10px] text-white/30 mt-2 leading-relaxed">
+                    Verified through GitHub OAuth (read-only profile access) — your username comes from the token, so nobody can claim a starrer&apos;s account.
+                  </p>
+                </>
+              )}
             </div>
           </div>
 
@@ -203,6 +258,11 @@ export default function SettingsPage() {
           </div>
         </main>
       </div>
+      <StarVerifyModal
+        open={starModalOpen}
+        onClose={() => setStarModalOpen(false)}
+        pendingAction="none"
+      />
     </div>
   );
 }
