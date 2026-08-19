@@ -4,6 +4,7 @@ export interface RepoData {
   name: string;
   description: string;
   url: string;
+  homepage: string;
   stars: number;
   forks: number;
   updatedAt: string;
@@ -203,6 +204,7 @@ export async function fetchGitHubProfile(username: string, token: string): Promi
       name: r.name,
       description: r.description || '',
       url: r.html_url,
+      homepage: r.homepage || '',
       stars: r.stargazers_count || 0,
       forks: r.forks_count || 0,
       updatedAt: r.updated_at || '',

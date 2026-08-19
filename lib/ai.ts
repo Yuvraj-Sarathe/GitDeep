@@ -303,13 +303,68 @@ async function callAI(settings: AppSettings, systemMsg: string, userPrompt: stri
   }
 }
 
+export interface DeploymentSignal {
+  repoName: string;
+  url: string;
+  reachable: boolean;
+  status: number | null;
+  title: string;
+  snippet: string;
+  looksLive: boolean;
+  note: string;
+}
+
+const MAX_DEPLOYMENT_CHECKS = 6;
+
+/**
+ * Live-fetches each non-fork repo's homepage via the SSRF-safe /api/fetch-site
+ * proxy so the assessment can judge whether the developer actually deploys.
+ * Returns null when the verification service itself is unreachable (the audit
+ * then judges from the homepage fields only); an empty array when the profile
+ * has no homepages at all (which is itself a signal: nothing is deployed).
+ */
+async function collectDeploymentSignals(data: UserAssessmentData): Promise<DeploymentSignal[] | null> {
+  const seen = new Set<string>();
+  const candidates = data.repos
+    .filter(r => !r.isFork && r.homepage && r.homepage.trim())
+    .filter(r => {
+      const key = r.homepage.trim().toLowerCase().replace(/\/+$/, '');
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, MAX_DEPLOYMENT_CHECKS);
+  if (candidates.length === 0) return [];
+
+  try {
+    return await Promise.all(candidates.map(async r => {
+      try {
+        const res = await fetch('/api/fetch-site', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: r.homepage }),
+        });
+        const json = await res.json();
+        return { repoName: r.name, url: r.homepage, ...json } as DeploymentSignal;
+      } catch {
+        return { repoName: r.name, url: r.homepage, reachable: false, status: null, title: '', snippet: '', looksLive: false, note: 'verification service error' };
+      }
+    }));
+  } catch {
+    return null;
+  }
+}
+
 export async function generateAssessment(
   data: UserAssessmentData, 
   settings: AppSettings, 
   mode: AssessmentMode,
   customQuestions: string = ''
 ): Promise<AssessmentResult> {
-  const prompt = settings.promptSize === 'small' ? buildSmallPrompt(data, mode, customQuestions) : buildPrompt(data, mode, customQuestions);
+  const deployments = await collectDeploymentSignals(data);
+  const prompt = settings.promptSize === 'small'
+    ? buildSmallPrompt(data, mode, customQuestions, deployments)
+    : buildPrompt(data, mode, customQuestions, deployments);
   const rawResponse = await callAI(settings, ASSESSMENT_SYSTEM_PROMPT, prompt, 'assessment');
 
   try {
@@ -404,7 +459,7 @@ function normalizeAssessment(raw: any): AssessmentResult {
   };
 }
 
-function buildPrompt(data: UserAssessmentData, mode: AssessmentMode, customQuestions: string): string {
+function buildPrompt(data: UserAssessmentData, mode: AssessmentMode, customQuestions: string, deployments: DeploymentSignal[] | null): string {
   const userJson = JSON.stringify({
     profile: {
       name: data.name,
@@ -427,6 +482,7 @@ function buildPrompt(data: UserAssessmentData, mode: AssessmentMode, customQuest
     recentRepos: data.repos.map(r => ({
       name: r.name,
       url: r.url,
+      homepage: r.homepage,
       description: r.description,
       stars: r.stars,
       forks: r.forks,
@@ -446,6 +502,22 @@ function buildPrompt(data: UserAssessmentData, mode: AssessmentMode, customQuest
   let basePrompt = `Analyze the following GitHub profile data:
   
 ${userJson}
+
+---
+
+## DEPLOYMENT VERIFICATION — LIVE FETCH (hard evidence)
+
+GitDeep fetched every non-fork repo's homepage field moments before this audit (real HTTP client, redirects followed, HTTPS). This proves what is actually deployed — README claims do not count. An EMPTY homepage field on a repo means the owner never set a website URL, i.e. NOTHING is deployed for that project.
+
+${deployments === null
+  ? 'This run could not reach the verification service — judge deployments only from the homepage fields in the profile data above and note that deployment could not be verified.'
+  : deployments.length === 0
+    ? 'None of the repos have a homepage set. Zero deployed projects.'
+    : deployments.map(d =>
+        `- ${d.repoName}: ${d.url} → ${d.reachable
+          ? `HTTP ${d.status ?? '?'}${d.looksLive ? ' (LIVE)' : ' (responds but looks like a placeholder/dead page — evidence: ' + (d.title || d.snippet.slice(0, 60)) + ')'}`
+          : `UNREACHABLE (${d.note})`}`
+      ).join('\n')}
 
 ---
 
@@ -540,6 +612,12 @@ Hirability is ALWAYS judged against real job standards — the same threshold fo
       - The plan should feel like advice from a blunt mentor who genuinely wants them to level up, not a chatbot generating bullet points.
       - Populate projectIdeas with exactly 3 items ({title, description, techStack}): concrete projects that fill THIS developer's portfolio gaps. Say WHAT to build, WHY it would impress a recruiter, and WHICH specific technologies to use. Each idea must be distinct and tied to a weakness already identified — never generic "todo app" filler.
 
+19. **DEPLOYMENT CHECK — LIVE, MANDATORY:** Audit the DEPLOYMENT VERIFICATION section above. This is the difference between "wrote code" and "ships software":
+    - **Dead homepage** (unreachable, HTTP 404/5xx, or looksLive:false — hosting placeholder, "under construction", parked domain, default welcome page): roast the developer by name for claiming a deployment that does not exist. A dead demo link is WORSE than no link — it says "I stopped caring." Cite the repo and its URL.
+    - **Zero homepages** (every repo homepage empty) despite buildable projects: roast for never shipping — "built it in the garage, never put it on the road." Name the most promising repo and what a live demo would have proven. This is a top-3 weakness and must appear in the summary roast.
+    - **Live site** (reachable + looksLive + real content): genuine credit — this developer ships. State it as a strength.
+    - **Fold deployment findings into:** the summary roast opener (lead with the worst deployment sin if any exists), swot weaknesses/strengths, repoAssessments redFlags (name the repo and its URL), tags ("Never Ships", "Ships It", "Demo-Ready"), weaknessMetrics where a related metric exists, and a dedicated "## 🚀 Deployment Audit" section in detailedReport listing each checked URL and its verdict. Do NOT soften dead-site roasts — no "but the code is nice".
+
 Your role (MODE-SPECIFIC — tone only, scores never change):
 ${mode === 'employer' ? 'BRUTAL HIRING ASSESSOR. You are a senior engineer advising a hiring manager, and your job is to protect the company from bad hires. Roast the weak, endorse the strong, reject the unready. No tips, no improvement advice, no cushioning, no mercy.' : 'BRUTAL MENTOR. Same scores and assessments as employer mode, same harsh tone — no sugarcoating. Additionally, populate mentorshipPlan with specific, actionable upgrade advice targeted at THIS developer\'s actual weaknesses — blunt and concrete enough to sting.'}
 
@@ -551,7 +629,7 @@ You MUST output ONLY a valid JSON object matching the requested schema exactly. 
   return basePrompt;
 }
 
-function buildSmallPrompt(data: UserAssessmentData, mode: AssessmentMode, customQuestions: string): string {
+function buildSmallPrompt(data: UserAssessmentData, mode: AssessmentMode, customQuestions: string, deployments: DeploymentSignal[] | null): string {
   const userJson = JSON.stringify({
     profile: {
       name: data.name, username: data.username, bio: data.bio, company: data.company,
@@ -561,7 +639,7 @@ function buildSmallPrompt(data: UserAssessmentData, mode: AssessmentMode, custom
     },
     topLanguages: data.languages,
     recentRepos: data.repos.map(r => ({
-      name: r.name, url: r.url, description: r.description, stars: r.stars, forks: r.forks,
+      name: r.name, url: r.url, homepage: r.homepage, description: r.description, stars: r.stars, forks: r.forks,
       language: r.language, topics: r.topics, isFork: r.isFork,
       hasReadme: r.hasReadme, readmeSnippet: r.readmeContent, hasLicense: r.hasLicense,
       licenseName: r.licenseName, defaultBranch: r.defaultBranch, updatedAt: r.updatedAt
@@ -571,6 +649,13 @@ function buildSmallPrompt(data: UserAssessmentData, mode: AssessmentMode, custom
 
   let prompt = `Analyze this GitHub profile:
 ${userJson}
+
+DEPLOYMENT VERIFICATION (live-fetched moments ago by GitDeep; empty homepage field = nothing deployed):
+${deployments === null
+  ? 'Verification service unreachable this run — judge deployments from homepage fields only.'
+  : deployments.length === 0
+    ? 'No repo has a homepage set. Zero deployed projects.'
+    : deployments.map(d => `- ${d.repoName}: ${d.url} → ${d.reachable ? `HTTP ${d.status ?? '?'}${d.looksLive ? ' LIVE' : ' (placeholder/dead)'}` : `UNREACHABLE (${d.note})`}`).join('\n')}
 
 STAGE CONTEXT: Infer the developer's stage (beginner/student/senior student/professional) from account age and activity. Information only — NEVER an excuse. No lenience anywhere, for anyone, at any stage. A one-week-old account gets roasted as hard as a five-year account. Hirability scoring uses professional standards regardless of stage.
 
@@ -590,6 +675,7 @@ RULES:
 13. Scores 1.0–10.0, HARSH scale: most real profiles land 3–6; 8+ = top 2% of GitHub developers; when uncertain, score LOWER. 7.0 is BANNED everywhere. Use 6.9 or 7.1. Tiers: 1.0–3.5 WEAK (0/3 hard signals), 3.6–5.9 AVERAGE (1/3), 6.0–7.5 STRONG (2/3), 7.6–9.5 EXCEPTIONAL (3/3). Hard signals: external merged PRs, original repos with READMEs, 6+ months consistent activity. Caps (never exceed): no external PRs → 6.9 max; no original README'd repo → 4.9 max; 3+ months inactive or declining slope → 5.9 max; critical weakness >70 → 5.9 max; most repos forked or README-less → 5.9 max; no tests anywhere → 6.9 max. Score must reflect demonstrated skill, never potential. Identical evidence → identical score (deviation ≤0.3).
 14. Per-repo: Score 1–10, verdict, 1–2 sentence analysis. Stage-aware for quality, not for hirability.
 15. Tone: ROAST STYLE — witty, analytical, slightly sarcastic, zero mercy. Open the summary with a 1-2 sentence brutal roast. If it's weak, make it sting. Banned: "shows potential", "overall a solid developer", participation-trophy praise, and ALL backtracking — never follow a critique with "but", "that said", "to be fair", "though", "in its defense", "on the other hand". Commit to every verdict; never rescue something you just roasted.
+16. DEPLOYMENT CHECK (MANDATORY): homepages were live-fetched (DEPLOYMENT VERIFICATION above). Dead URL (unreachable/404/placeholder) → roast by name — it's worse than no link. Zero homepages on buildable repos → roast for never shipping; top weakness, lead the summary with it. Live real site → genuine credit. Name repos + URLs. Add a "## 🚀 Deployment Audit" section to detailedReport.
 
 Mode: ${mode === 'employer' ? 'Brutally honest, roast style. No improvement tips. If unsuitable, say so clearly.' : 'Blunt mentor. Same scores, same harsh tone. Add mentorshipPlan with SPECIFIC language suggestions, concrete project ideas for this developer\'s actual gaps, direct feedback on their writing/tone, a repo portfolio audit (which repos to remove or archive, which to improve and exactly how, which to add next), and unconventional growth tactics for real stars/forks — launch posts, building in public, cross-posting tutorials, contributing to trending repos, pinning and renaming for discoverability; no fake stars, no spam. Not generic advice. Also output projectIdeas: exactly 3 objects {title, description, techStack} that fill those gaps.'}
 ${customQuestions ? `Custom Q: "${customQuestions}"` : ''}

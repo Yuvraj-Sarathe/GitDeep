@@ -30,6 +30,11 @@ export const DEFAULT_LOADING_MESSAGES: string[] = [
   "Wondering why everything is named 'final_final_v2'…",
   "Trying to find the actual main branch…",
 
+  // ── deployment check ──────────────────────────────────────
+  "Fetching deployed sites… praying for a 200…",
+  "Pinging every 'it works on my machine' URL…",
+  "Clicking project links to see if they load…",
+
   // ── work-in-progress / flavor ─────────────────────────────
   "Scanning 1,247 files of pure chaos…",
   "Connecting the dots between repos and reality…",
