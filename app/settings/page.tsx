@@ -4,15 +4,20 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { AI_PROVIDERS, AIProvider, PromptSize } from '@/lib/types';
-import { ArrowLeft, Settings, ExternalLink, Star, Check } from 'lucide-react';
+import { ArrowLeft, Settings, ExternalLink, Star, Check, Bell } from 'lucide-react';
 import { SHARED_REPO_OWNER, SHARED_REPO_NAME, SHARED_REPO_URL, SHARED_KEY_RPM_LIMIT, SHARED_KEY_RPD_LIMIT } from '@/lib/sharedKey';
 import StarVerifyModal from '@/components/StarVerifyModal';
+import { ensureNotificationPermission, notificationsSupported } from '@/lib/notifications';
 
 export default function SettingsPage() {
   const router = useRouter();
   const { settings, updateSettings } = useStore();
   const [localSettings, setLocalSettings] = useState(settings);
   const [starModalOpen, setStarModalOpen] = useState(false);
+  const [notifPermission, setNotifPermission] = useState<string>(() => {
+    if (!notificationsSupported()) return 'unsupported';
+    return Notification.permission;
+  });
 
   const handleProviderChange = (providerId: AIProvider) => {
     const info = AI_PROVIDERS.find(p => p.id === providerId);
@@ -30,6 +35,12 @@ export default function SettingsPage() {
   const handleRevokeStar = () => {
     updateSettings({ sharedKeyVerified: false, sharedKeyUsername: '' });
     setLocalSettings(prev => ({ ...prev, sharedKeyVerified: false, sharedKeyUsername: '' }));
+  };
+
+  const handleEnableNotifications = async () => {
+    const granted = await ensureNotificationPermission();
+    setNotifPermission(granted ? 'granted' : 'denied');
+    if (granted) setLocalSettings(prev => ({ ...prev, notifyOnComplete: true }));
   };
 
   const handleSave = () => {
@@ -210,6 +221,53 @@ export default function SettingsPage() {
                 <option value="small" className="bg-[#0A0A0F]">Small (compact) — for local/small models</option>
               </select>
               <p className="text-[10px] text-white/30 mt-1.5">Full = ~1200 token prompt for deep analysis. Small = ~400 tokens for limited context models.</p>
+            </div>
+          </div>
+
+          {/* Notifications */}
+          <div className="double-bezel">
+            <div className="inner">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-medium text-white/60 uppercase tracking-wider flex items-center gap-2">
+                  <Bell className="w-3.5 h-3.5 text-white/40" /> Notifications
+                </label>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                    notifPermission === 'granted'
+                      ? 'bg-[#2EA043]/15 text-[#46E363]'
+                      : notifPermission === 'denied'
+                        ? 'bg-[#F85149]/15 text-[#FF7B72]'
+                        : 'bg-white/[0.04] text-white/30'
+                  }`}
+                >
+                  {notifPermission === 'granted' ? 'On' : notifPermission === 'denied' ? 'Blocked' : notifPermission === 'unsupported' ? 'Unavailable' : 'Ask'}
+                </span>
+              </div>
+              <p className="text-xs text-white/40 mb-3 leading-relaxed">
+                Get an OS-level notification when an analysis finishes, even while this tab runs in the background. Permission is granted by your browser — GitDeep never collects anything.
+              </p>
+              <label className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-3 cursor-pointer premium-transition hover:border-white/20">
+                <input
+                  type="checkbox"
+                  checked={localSettings.notifyOnComplete}
+                  onChange={e => setLocalSettings({ ...localSettings, notifyOnComplete: e.target.checked })}
+                  className="w-4 h-4 accent-[#58A6FF]"
+                />
+                <span className="text-sm text-white/80">Notify when analysis is done</span>
+              </label>
+              {notifPermission !== 'unsupported' && (
+                <button
+                  type="button"
+                  onClick={handleEnableNotifications}
+                  className="mt-3 text-[10px] uppercase tracking-widest text-[#58A6FF] hover:text-white premium-transition"
+                >
+                  {notifPermission === 'granted'
+                    ? 'Notifications enabled for this browser'
+                    : notifPermission === 'denied'
+                      ? 'Blocked — enable in your browser site settings'
+                      : 'Enable notifications on this device'}
+                </button>
+              )}
             </div>
           </div>
 

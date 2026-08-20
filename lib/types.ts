@@ -49,6 +49,7 @@ export interface AppSettings {
   apiEndpoint: string;
   model: string;
   promptSize: PromptSize;
+  notifyOnComplete: boolean;
   sharedKeyVerified: boolean;
   sharedKeyUsername: string;
 }
@@ -60,6 +61,7 @@ export const defaultSettings: AppSettings = {
   apiEndpoint: '',
   model: 'gemini-3.6-flash',
   promptSize: 'full',
+  notifyOnComplete: true,
   sharedKeyVerified: false,
   sharedKeyUsername: '',
 };

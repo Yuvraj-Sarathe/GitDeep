@@ -7,6 +7,7 @@ import { fetchGitHubProfile, UserAssessmentData } from '@/lib/github';
 import { generateAssessment, generateMentorship, generateFollowUpAnswer, AssessmentMode, AssessmentResult, compareCandidates, ComparisonCandidate, ComparisonResult } from '@/lib/ai';
 import { assessmentToMarkdown, buildExportFilename, downloadMarkdown } from '@/lib/exportMarkdown';
 import { useStore } from '@/lib/store';
+import { ensureNotificationPermission, notifyAnalysisComplete } from '@/lib/notifications';
 import { takeStarRunPending } from '@/lib/starAuth';
 import { SettingsModal } from '@/components/SettingsModal';
 import ErrorTicket from '@/components/ErrorTicket';
@@ -97,11 +98,22 @@ function AssessmentContent() {
     setError(null);
     setErrorTicket(null);
     try {
+      // Ask for notification permission while the run is underway — the prompt
+      // doesn't block the analysis, and the grant lands before completion.
+      if (settings.notifyOnComplete) ensureNotificationPermission();
+
       const ghData = await fetchGitHubProfile(targetUser, settings.githubToken);
       setGithubData(ghData);
 
       const aiResponse = await generateAssessment(ghData, settings, mode);
       setAssessment(aiResponse);
+
+      notifyAnalysisComplete(
+        'GitDeep analysis complete',
+        `@${ghData.username} — hirability ${typeof aiResponse.hirabilityScore === 'number' && !Number.isNaN(aiResponse.hirabilityScore)
+          ? (aiResponse.hirabilityScore > 10 ? aiResponse.hirabilityScore / 10 : aiResponse.hirabilityScore).toFixed(1)
+          : '—'}/10`
+      );
 
       const stored: ComparisonCandidate[] = JSON.parse(sessionStorage.getItem('assessedCandidates') || '[]');
       const entry: ComparisonCandidate = { username: ghData.username, avatarUrl: ghData.avatarUrl, assessment: aiResponse };
@@ -218,6 +230,7 @@ function AssessmentContent() {
       const mentor = await generateMentorship(githubData, settings, assessment);
       const merged = { ...assessment, ...mentor };
       setAssessment(merged);
+      notifyAnalysisComplete('Mentor plan ready', `@${githubData.username} — improvement steps and project ideas are in.`);
       // Keep the session cache in sync so the mentor plan survives a tab reload.
       try {
         const stored: ComparisonCandidate[] = JSON.parse(sessionStorage.getItem('assessedCandidates') || '[]');
