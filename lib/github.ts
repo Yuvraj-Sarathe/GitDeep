@@ -170,54 +170,59 @@ export async function fetchGitHubProfile(username: string, token: string): Promi
     throw new Error(`Failed to fetch repositories: ${err.message}`);
   }
 
-  const repos: RepoData[] = [];
   // Aggregate languages from repo list metadata (zero additional API calls)
   const languageCounts: Record<string, number> = {};
   const reposToAssess = reposRaw.filter(r => !r.fork).slice(0, 15);
   const totalStars = reposToAssess.reduce((acc, r) => acc + (r.stargazers_count || 0), 0);
 
-  for (const r of reposToAssess) {
-    // Use r.language from the repo list — no extra API call needed
-    if (r.language) {
-      languageCounts[r.language] = (languageCounts[r.language] || 0) + 1;
-    }
-
-    let readmeContent = '';
-    let hasReadme = false;
-    try {
-      if ((r.size ?? 0) > 0) {
-        const { data: readmeRaw } = await octokit.rest.repos.getReadme({
-          owner: username,
-          repo: r.name,
-          mediaType: {
-            format: 'raw',
-          },
-        });
-        hasReadme = true;
-        readmeContent = (readmeRaw as unknown as string).substring(0, 1500);
+  // Fire every README request at once and wait only for the slowest one,
+  // instead of serializing 15 full round trips. Same pattern as
+  // collectDeploymentSignals in lib/ai.ts; 15 concurrent requests is nowhere
+  // near the 5000/hr tokenized limit.
+  const repos: RepoData[] = await Promise.all(
+    reposToAssess.map(async (r) => {
+      // Use r.language from the repo list — no extra API call needed
+      if (r.language) {
+        languageCounts[r.language] = (languageCounts[r.language] || 0) + 1;
       }
-    } catch (e) {
-      // no readme
-    }
 
-    repos.push({
-      name: r.name,
-      description: r.description || '',
-      url: r.html_url,
-      homepage: r.homepage || '',
-      stars: r.stargazers_count || 0,
-      forks: r.forks_count || 0,
-      updatedAt: r.updated_at || '',
-      hasReadme,
-      readmeContent,
-      hasLicense: !!r.license,
-      licenseName: r.license?.name,
-      language: r.language || 'Unknown',
-      topics: r.topics || [],
-      isFork: r.fork,
-      defaultBranch: r.default_branch || 'main',
-    });
-  }
+      let readmeContent = '';
+      let hasReadme = false;
+      try {
+        if ((r.size ?? 0) > 0) {
+          const { data: readmeRaw } = await octokit.rest.repos.getReadme({
+            owner: username,
+            repo: r.name,
+            mediaType: {
+              format: 'raw',
+            },
+          });
+          hasReadme = true;
+          readmeContent = (readmeRaw as unknown as string).substring(0, 1500);
+        }
+      } catch (e) {
+        // no readme
+      }
+
+      return {
+        name: r.name,
+        description: r.description || '',
+        url: r.html_url,
+        homepage: r.homepage || '',
+        stars: r.stargazers_count || 0,
+        forks: r.forks_count || 0,
+        updatedAt: r.updated_at || '',
+        hasReadme,
+        readmeContent,
+        hasLicense: !!r.license,
+        licenseName: r.license?.name,
+        language: r.language || 'Unknown',
+        topics: r.topics || [],
+        isFork: r.fork,
+        defaultBranch: r.default_branch || 'main',
+      };
+    })
+  );
 
   // 3. Fetch PRs (merged in other repos)
   const prs: PRData[] = [];

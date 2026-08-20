@@ -4,7 +4,7 @@ import React, { useEffect, useState, Suspense, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { fetchGitHubProfile, UserAssessmentData } from '@/lib/github';
-import { generateAssessment, generateMentorship, AssessmentMode, AssessmentResult, compareCandidates, ComparisonCandidate, ComparisonResult } from '@/lib/ai';
+import { generateAssessment, generateMentorship, generateFollowUpAnswer, AssessmentMode, AssessmentResult, compareCandidates, ComparisonCandidate, ComparisonResult } from '@/lib/ai';
 import { assessmentToMarkdown, buildExportFilename, downloadMarkdown } from '@/lib/exportMarkdown';
 import { useStore } from '@/lib/store';
 import { takeStarRunPending } from '@/lib/starAuth';
@@ -171,16 +171,19 @@ function AssessmentContent() {
 
   const handleAskQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customQuestion.trim() || !githubData) return;
+    if (!customQuestion.trim() || !githubData || !assessment) return;
     if (requireStarVerification('none')) return;
     setAskingQuestion(true);
     try {
-      const response = await generateAssessment(githubData, settings, mode, customQuestion);
+      // Answer against the completed assessment — no full re-run, no re-scoring.
+      // Same split as generateMentorship: the assessment is ground truth and only
+      // new text is generated.
+      const answer = await generateFollowUpAnswer(githubData, settings, assessment, customQuestion);
       setAssessment(prev => {
-        if (!prev) return response;
+        if (!prev) return prev;
         return {
-          ...response,
-          detailedReport: prev.detailedReport + `\n\n---\n\n### Q: ${customQuestion}\n\n${response.detailedReport}`,
+          ...prev,
+          detailedReport: prev.detailedReport + `\n\n---\n\n### Q: ${customQuestion}\n\n${answer}`,
         };
       });
       setCustomQuestion('');

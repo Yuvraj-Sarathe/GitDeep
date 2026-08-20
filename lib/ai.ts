@@ -153,6 +153,19 @@ const mentorshipSchema = {
 
 const MENTORSHIP_SYSTEM_PROMPT = "You are a professional GitHub Auditor turned BRUTAL MENTOR. The assessment is already complete — your only job is to tell the developer exactly what to improve — code, repos, and presence — and what to build next. No re-scoring, no re-evaluating, no softening. Roast-style honesty: blunt, specific, actionable. Never contradict the assessment's verdicts and never walk back a criticism with 'but', 'that said', 'to be fair' — commit to every call. YOU MUST OUTPUT ONLY VALID MINIFIED JSON. NO MARKDOWN OR HTML WRAPPERS.";
 
+// A follow-up question must not re-run the assessment — it only answers one
+// question against the completed assessment as ground truth. Same shape as the
+// mentorship split: new text only, nothing re-scored.
+const followUpSchema = {
+  type: Type.OBJECT,
+  properties: {
+    answer: { type: Type.STRING }
+  },
+  required: ["answer"]
+};
+
+const FOLLOW_UP_SYSTEM_PROMPT = "You are a professional GitHub Auditor. Tone: witty, analytical, brutally honest, slightly sarcastic (roast style). A hiring manager is asking a follow-up question about a developer whose assessment is already complete. Answer the question directly using that completed assessment as ground truth. Do NOT re-score, re-evaluate, or regenerate the assessment. Never contradict or soften the assessment's verdicts — commit to every call. YOU MUST OUTPUT ONLY VALID MINIFIED JSON. NO MARKDOWN OR HTML WRAPPERS.";
+
 async function callGemini(apiKey: string, model: string, systemMsg: string, userPrompt: string, schema: any): Promise<string> {
   const ai = new GoogleGenAI({ apiKey });
   // Race against a hard timeout — a hung request must never leave the page
@@ -249,9 +262,9 @@ function isRetryableGeminiError(err: any): boolean {
   return /429|500|502|503|529|resource_exhausted|quota|rate limit|rate_limit|overloaded|unavailable|too many requests|temporar|api key not valid|invalid api key|unauthorized|401/.test(msg);
 }
 
-async function callAI(settings: AppSettings, systemMsg: string, userPrompt: string, provider: 'assessment' | 'comparison' | 'mentorship'): Promise<string> {
+async function callAI(settings: AppSettings, systemMsg: string, userPrompt: string, provider: 'assessment' | 'comparison' | 'mentorship' | 'followup'): Promise<string> {
   const providerType = settings.aiProvider;
-  const schema = provider === 'assessment' ? assessmentSchema : provider === 'comparison' ? comparisonSchema : mentorshipSchema;
+  const schema = provider === 'assessment' ? assessmentSchema : provider === 'comparison' ? comparisonSchema : provider === 'mentorship' ? mentorshipSchema : followUpSchema;
   switch (providerType) {
     case 'gemini': {
       const key = settings.apiKey || process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
@@ -616,7 +629,23 @@ Hirability is ALWAYS judged against real job standards — the same threshold fo
     - **Dead homepage** (unreachable, HTTP 404/5xx, or looksLive:false — hosting placeholder, "under construction", parked domain, default welcome page): roast the developer by name for claiming a deployment that does not exist. A dead demo link is WORSE than no link — it says "I stopped caring." Cite the repo and its URL.
     - **Zero homepages** (every repo homepage empty) despite buildable projects: roast for never shipping — "built it in the garage, never put it on the road." Name the most promising repo and what a live demo would have proven. This is a top-3 weakness and must appear in the summary roast.
     - **Live site** (reachable + looksLive + real content): genuine credit — this developer ships. State it as a strength.
-    - **Fold deployment findings into:** the summary roast opener (lead with the worst deployment sin if any exists), swot weaknesses/strengths, repoAssessments redFlags (name the repo and its URL), tags ("Never Ships", "Ships It", "Demo-Ready"), weaknessMetrics where a related metric exists, and a dedicated "## 🚀 Deployment Audit" section in detailedReport listing each checked URL and its verdict. Do NOT soften dead-site roasts — no "but the code is nice".
+    - **Fold deployment findings into THREE places only:** the summary roast opener (lead with the worst deployment sin if any exists), swot weaknesses/strengths, and repoAssessments redFlags (name the repo and its URL). Do NOT add a separate "## 🚀 Deployment Audit" section to detailedReport — the per-repo redFlags already carry the evidence, and restating it there just burns output tokens restating the same fact. Do NOT soften dead-site roasts — no "but the code is nice".
+
+20. **FIELD-LEVEL SCORE ANCHORS — EVERY NUMBER GETS TEETH:** Every numeric field below has a stated range and evidence-based caps. Never output a number outside its range. On 0–100 fields, 70 is the comfortable middle — BANNED (use 69 or 71, the same rule as 7.0). Default harsh: when evidence is thin, score LOWER. Identical evidence → identical scores (deviation ≤3 on 0–100 scales, ≤0.3 on 0–10 scales).
+    - **metrics (0–100):**
+      - creativity — novelty of original work. Caps: only tutorial clones / todo apps / course-following repos → 40; pure forks or generated boilerplate with no original logic → 35; any genuinely original project → 60+; a novel tool others actually use → 80+.
+      - potential — demonstrated growth, NEVER raw talent. Caps: no commits in 3+ months or no visible learning curve → 35; same stack with zero new skills over 2+ years → 40; steady progression (new languages, bigger projects over time) → 65+.
+      - aiUsage — quality of AI use. Caps: slop signals (generic gradients, slash-comment spam, copied output) → 30; AI only for boilerplate with human architecture → 60; genuine orchestration guiding AI to production-grade results → 75+.
+      - security — evidence of security thinking. Caps: hardcoded keys/tokens in any repo → 20; zero security artifacts (auth, validation, .env discipline) → 35; real security practices present → 60+.
+      - professionalism — presentation vs reality. Caps: bio claims a stack the repos don't back up → 50; no READMEs anywhere or broken links → 45; clean profile, docs, real deployments → 70+.
+      - codeQuality — structure, tests, error handling. Caps: no tests in ANY repo → 55; single-file scripts with no structure → 40; test suite / CI / well-factored code → 70+.
+    - **weaknessMetrics (0–100, higher = worse):** no evidence of the weakness → 30 or below; mild evidence → 40–55; repeated or flagrant evidence → 70+. Caps: buzzwordDensity — bio full of hype with no matching code → 80; aiSlop — obvious generated filler → 70; lackOfDocs — more than half of repos README-less → 75; inconsistency — 6+ month gaps in activity → 70; arrogance — condescending or gatekeeping tone → 70; poorArchitecture — everything in single files, no separation of concerns → 70. Hard ceiling 95 — nothing is 100% broken.
+    - **growthMeter (0–100):** trajectory, not potential (rule 11). Caps: 4+ years still at tutorial level → 30; dormant or declining 6+ months → 25; steady multi-year progression → 65+.
+    - **slopeAnalysis.slopeScore (0–10):** declining/dormant → ≤3; flat or sporadic → 3–5; steady → 6–7; clear upward momentum → 8+.
+    - **behavioralAnalysis.confidenceScore (0–10):** assertive, constructive tone. Caps: no external PRs or public writing to judge → 4; defensive or combative writing → 3; constructive contributions → 7+.
+    - **behavioralAnalysis.arroganceScore (0–10):** condescension, gatekeeping, overclaiming. Caps: claims a skill with no repo evidence → 7; "only correct way" / mocking others → 8; no toxic patterns → ≤3.
+    - **buzzwordAnalysis.buzzwordToRealityRatio (0–10):** claims vs actual stack (rule 2). Caps: bio claims AI/ML with only HTML/CSS/JS repos → 2; buzzwords match demonstrated repos → 7+.
+    - **repoAssessments[].repoScore (1.0–10.0):** Caps: no README → 5.9 max; tutorial clone or untouched starter template → 4.9 max; dead demo link → 5.9 max; production-grade with docs, tests, and real users → 7.6+.
 
 Your role (MODE-SPECIFIC — tone only, scores never change):
 ${mode === 'employer' ? 'BRUTAL HIRING ASSESSOR. You are a senior engineer advising a hiring manager, and your job is to protect the company from bad hires. Roast the weak, endorse the strong, reject the unready. No tips, no improvement advice, no cushioning, no mercy.' : 'BRUTAL MENTOR. Same scores and assessments as employer mode, same harsh tone — no sugarcoating. Additionally, populate mentorshipPlan with specific, actionable upgrade advice targeted at THIS developer\'s actual weaknesses — blunt and concrete enough to sting.'}
@@ -675,7 +704,8 @@ RULES:
 13. Scores 1.0–10.0, HARSH scale: most real profiles land 3–6; 8+ = top 2% of GitHub developers; when uncertain, score LOWER. 7.0 is BANNED everywhere. Use 6.9 or 7.1. Tiers: 1.0–3.5 WEAK (0/3 hard signals), 3.6–5.9 AVERAGE (1/3), 6.0–7.5 STRONG (2/3), 7.6–9.5 EXCEPTIONAL (3/3). Hard signals: external merged PRs, original repos with READMEs, 6+ months consistent activity. Caps (never exceed): no external PRs → 6.9 max; no original README'd repo → 4.9 max; 3+ months inactive or declining slope → 5.9 max; critical weakness >70 → 5.9 max; most repos forked or README-less → 5.9 max; no tests anywhere → 6.9 max. Score must reflect demonstrated skill, never potential. Identical evidence → identical score (deviation ≤0.3).
 14. Per-repo: Score 1–10, verdict, 1–2 sentence analysis. Stage-aware for quality, not for hirability.
 15. Tone: ROAST STYLE — witty, analytical, slightly sarcastic, zero mercy. Open the summary with a 1-2 sentence brutal roast. If it's weak, make it sting. Banned: "shows potential", "overall a solid developer", participation-trophy praise, and ALL backtracking — never follow a critique with "but", "that said", "to be fair", "though", "in its defense", "on the other hand". Commit to every verdict; never rescue something you just roasted.
-16. DEPLOYMENT CHECK (MANDATORY): homepages were live-fetched (DEPLOYMENT VERIFICATION above). Dead URL (unreachable/404/placeholder) → roast by name — it's worse than no link. Zero homepages on buildable repos → roast for never shipping; top weakness, lead the summary with it. Live real site → genuine credit. Name repos + URLs. Add a "## 🚀 Deployment Audit" section to detailedReport.
+16. DEPLOYMENT CHECK (MANDATORY): homepages were live-fetched (DEPLOYMENT VERIFICATION above). Dead URL (unreachable/404/placeholder) → roast by name — it's worse than no link. Zero homepages on buildable repos → roast for never shipping; top weakness, lead the summary with it. Live real site → genuine credit. Name repos + URLs. Fold the finding into the summary opener, SWOT, and the repo's redFlags ONLY — no separate "## 🚀 Deployment Audit" section in detailedReport.
+17. FIELD SCALES — every numeric field has a fixed range and caps; never output outside them. Ranges: metrics, weaknessMetrics, growthMeter = 0–100; slopeScore, confidenceScore, arroganceScore, buzzwordToRealityRatio = 0–10; repoScore 1–10. On 0–100 fields, 70 is BANNED (use 69/71). CAPS: creativity — clones/tutorials only → ≤40; potential — dormant 3+ months or no growth → ≤35; aiUsage — slop signals → ≤30; security — hardcoded keys → ≤20, zero security evidence → ≤35; professionalism — bio overclaims stack → ≤50; codeQuality — no tests anywhere → ≤55; weaknessMetrics (higher = worse) — flagrant evidence → 70+, absent → ≤30; growthMeter — stagnant years → ≤30; slopeScore — declining → ≤3; confidence — unproven or combative → ≤4; arrogance — claims without evidence or gatekeeping → 7+; buzzwordToRealityRatio — hype with no matching code → ≤2; repoScore — no README → 5.9 max, tutorial clone → 4.9 max, dead demo link → 5.9 max. Default harsh: thin evidence → score LOWER.
 
 Mode: ${mode === 'employer' ? 'Brutally honest, roast style. No improvement tips. If unsuitable, say so clearly.' : 'Blunt mentor. Same scores, same harsh tone. Add mentorshipPlan with SPECIFIC language suggestions, concrete project ideas for this developer\'s actual gaps, direct feedback on their writing/tone, a repo portfolio audit (which repos to remove or archive, which to improve and exactly how, which to add next), and unconventional growth tactics for real stars/forks — launch posts, building in public, cross-posting tutorials, contributing to trending repos, pinning and renaming for discoverability; no fake stars, no spam. Not generic advice. Also output projectIdeas: exactly 3 objects {title, description, techStack} that fill those gaps.'}
 ${customQuestions ? `Custom Q: "${customQuestions}"` : ''}
@@ -798,6 +828,75 @@ ${cachedJson}
 
 Output ONLY valid JSON with keys: mentorshipPlan (string) and projectIdeas (array of {title, description, techStack}).
 No markdown outside the JSON. No preamble.`;
+}
+
+function buildFollowUpPrompt(data: UserAssessmentData, cached: AssessmentResult, question: string): string {
+  const userJson = JSON.stringify({
+    profile: {
+      name: data.name, username: data.username, bio: data.bio,
+      followers: data.followers, following: data.following, publicRepos: data.publicRepos,
+      createdAt: data.createdAt, totalStars: data.totalStars, totalMergedPRs: data.totalPrs,
+    },
+    topLanguages: data.languages,
+    recentRepos: data.repos.slice(0, 15).map(r => ({
+      name: r.name, description: r.description, stars: r.stars, forks: r.forks,
+      language: r.language, isFork: r.isFork, hasReadme: r.hasReadme,
+    })),
+  }, null, 2);
+
+  const cachedJson = JSON.stringify({
+    hirabilityScore: cached.hirabilityScore,
+    hirabilityRoles: cached.hirabilityRoles,
+    notSuitedRoles: cached.notSuitedRoles,
+    growthMeter: cached.growthMeter,
+    summary: cached.summary,
+    tags: cached.tags,
+    swot: cached.swot,
+    metrics: cached.metrics,
+    weaknessMetrics: cached.weaknessMetrics,
+    slopeAnalysis: cached.slopeAnalysis,
+    buzzwordAnalysis: cached.buzzwordAnalysis,
+    behavioralAnalysis: cached.behavioralAnalysis,
+    repoAssessments: (cached.repoAssessments || []).map(r => ({ repoName: r.repoName, repoScore: r.repoScore, repoVerdict: r.repoVerdict })),
+  }, null, 2);
+
+  return `A developer has already been fully assessed. A hiring manager is asking one follow-up question about them. Your ONLY job is to answer that question — do NOT re-score, re-evaluate, or regenerate any part of the assessment.
+
+## DEVELOPER PROFILE
+${userJson}
+
+## COMPLETED ASSESSMENT (GROUND TRUTH — DO NOT CONTRADICT IT)
+${cachedJson}
+
+## THE QUESTION
+${question}
+
+## INSTRUCTIONS
+1. Answer the question directly, in the same roast-style tone as the assessment. No hedging, no backtracking, no 'but', 'that said', 'though' — commit to every call.
+2. Ground the answer in the evidence already in the assessment and profile. Reference the actual repos, scores, or weaknesses where they matter.
+3. Keep it a focused answer to THIS question — not a re-run of the whole assessment. A short, sharp answer (3-6 sentences, bullets allowed) beats a long generic one.
+4. Never contradict the assessment's scores or verdicts.
+
+Output ONLY valid JSON with the single key "answer" (a string). No markdown wrappers. No preamble.`;
+}
+
+export async function generateFollowUpAnswer(
+  data: UserAssessmentData,
+  settings: AppSettings,
+  cachedAssessment: AssessmentResult,
+  question: string
+): Promise<string> {
+  const prompt = buildFollowUpPrompt(data, cachedAssessment, question);
+  const rawResponse = await callAI(settings, FOLLOW_UP_SYSTEM_PROMPT, prompt, 'followup');
+
+  try {
+    const cleaned = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(cleaned);
+    return typeof parsed.answer === 'string' ? parsed.answer.trim() : '';
+  } catch (e: any) {
+    const suggestion = getAISuggestion(e, settings.aiProvider);
+    throw new Error(suggestion);
+  }
 }
 
 export async function generateMentorship(

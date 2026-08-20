@@ -32,7 +32,8 @@ export async function POST(request: NextRequest) {
               { role: 'system', content: systemInstruction || '' },
               { role: 'user', content: prompt }
             ],
-            stream: false
+            stream: false,
+            temperature: 0
           })
         });
 
