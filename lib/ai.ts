@@ -166,6 +166,11 @@ const followUpSchema = {
 
 const FOLLOW_UP_SYSTEM_PROMPT = "You are a professional GitHub Auditor. Tone: witty, analytical, brutally honest, slightly sarcastic (roast style). A hiring manager is asking a follow-up question about a developer whose assessment is already complete. Answer the question directly using that completed assessment as ground truth. Do NOT re-score, re-evaluate, or regenerate the assessment. Never contradict or soften the assessment's verdicts — commit to every call. YOU MUST OUTPUT ONLY VALID MINIFIED JSON. NO MARKDOWN OR HTML WRAPPERS.";
 
+// Repair pass: the model returned a mostly-complete assessment but left some
+// sections empty. Instead of failing the whole run, ask for ONE small call that
+// fills ONLY the missing sections against the partial assessment as context.
+const REPAIR_SYSTEM_PROMPT = "You are a professional GitHub Auditor. Tone: witty, analytical, brutally honest, slightly sarcastic (roast style). An assessment was generated but some sections came back empty. Fill in ONLY the missing sections listed in the prompt. Match the tone, style, and evidence of the existing assessment exactly — roast style, no softening, no backtracking, no 'but', 'that said', 'though'. Do not change or contradict anything already present. OUTPUT ONLY VALID MINIFIED JSON containing exactly the requested keys. NO MARKDOWN OR HTML WRAPPERS.";
+
 async function callGemini(apiKey: string, model: string, systemMsg: string, userPrompt: string, schema: any): Promise<string> {
   const ai = new GoogleGenAI({ apiKey });
   // Race against a hard timeout — a hung request must never leave the page
@@ -262,9 +267,9 @@ function isRetryableGeminiError(err: any): boolean {
   return /429|500|502|503|529|resource_exhausted|quota|rate limit|rate_limit|overloaded|unavailable|too many requests|temporar|api key not valid|invalid api key|unauthorized|401/.test(msg);
 }
 
-async function callAI(settings: AppSettings, systemMsg: string, userPrompt: string, provider: 'assessment' | 'comparison' | 'mentorship' | 'followup'): Promise<string> {
+async function callAI(settings: AppSettings, systemMsg: string, userPrompt: string, provider: 'assessment' | 'comparison' | 'mentorship' | 'followup' | 'repair', schemaOverride?: any): Promise<string> {
   const providerType = settings.aiProvider;
-  const schema = provider === 'assessment' ? assessmentSchema : provider === 'comparison' ? comparisonSchema : provider === 'mentorship' ? mentorshipSchema : followUpSchema;
+  const schema = schemaOverride ?? (provider === 'assessment' ? assessmentSchema : provider === 'comparison' ? comparisonSchema : provider === 'mentorship' ? mentorshipSchema : followUpSchema);
   switch (providerType) {
     case 'gemini': {
       const key = settings.apiKey || process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
@@ -391,7 +396,18 @@ export async function generateAssessment(
     const result = normalizeAssessment(parsed);
     const validation = validateAssessmentComplete(result);
     if (!validation.complete) {
-      throw new Error(`Assessment incomplete: ${validation.reason}. Switch to Gemini 3.6 Flash or a model with 32K+ context for complete results.`);
+      // Don't kill the run over a few empty sections — ask the model for ONE
+      // focused pass that fills only what's missing, merged into what we have.
+      const repaired = (await repairMissingSections(data, settings, result, validation.missing)) ?? result;
+      const revalidated = validateAssessmentComplete(repaired);
+      if (revalidated.complete) return repaired;
+      // Even after repair: if the core sections exist, show the result and let
+      // the page's completeness warning banner do its job instead of erroring.
+      const hasCore = (repaired.summary?.length ?? 0) >= 20
+        && (repaired.detailedReport?.length ?? 0) >= 200
+        && (repaired.repoAssessments?.length ?? 0) > 0;
+      if (hasCore) return repaired;
+      throw new Error(`Assessment incomplete: ${revalidated.reason}. Switch to Gemini 3.6 Flash or a model with 32K+ context for complete results.`);
     }
     return result;
   } catch (e: any) {
@@ -400,30 +416,152 @@ export async function generateAssessment(
   }
 }
 
-function validateAssessmentComplete(result: AssessmentResult): { complete: boolean; reason: string } {
-  const issues: string[] = [];
-  if (!result.summary || result.summary.length < 20) issues.push('summary missing or too short');
-  if (!result.detailedReport || result.detailedReport.length < 200) issues.push('detailed report truncated');
-  if (!result.repoAssessments || result.repoAssessments.length === 0) issues.push('repo assessments missing');
-  if (!result.timeline || result.timeline.length === 0) issues.push('career timeline missing');
-  if (!result.hirabilityRoles || result.hirabilityRoles.length === 0) issues.push('hirability roles missing');
-  if (!result.tags || result.tags.length === 0) issues.push('tags missing');
+const FIELD_LABELS: Record<string, string> = {
+  summary: 'summary missing or too short',
+  detailedReport: 'detailed report truncated',
+  repoAssessments: 'repo assessments missing',
+  timeline: 'career timeline missing',
+  hirabilityRoles: 'hirability roles missing',
+  tags: 'tags missing',
+  swot: 'SWOT quadrants empty',
+};
+
+function validateAssessmentComplete(result: AssessmentResult): { complete: boolean; reason: string; missing: string[] } {
+  const missing: string[] = [];
+  if (!result.summary || result.summary.length < 20) missing.push('summary');
+  if (!result.detailedReport || result.detailedReport.length < 200) missing.push('detailedReport');
+  if (!result.repoAssessments || result.repoAssessments.length === 0) missing.push('repoAssessments');
+  if (!result.timeline || result.timeline.length === 0) missing.push('timeline');
+  if (!result.hirabilityRoles || result.hirabilityRoles.length === 0) missing.push('hirabilityRoles');
+  if (!result.tags || result.tags.length === 0) missing.push('tags');
 
   // ALL FOUR SWOT quadrants are mandatory — a partial SWOT means the assessment
   // is incomplete, not that "no opportunities/threats exist".
   const swotQuadrants: Array<keyof AssessmentResult['swot']> = ['strengths', 'weaknesses', 'opportunities', 'threats'];
   const missingSwot = swotQuadrants.filter(k => !result.swot[k] || result.swot[k].length === 0);
-  if (missingSwot.length > 0) {
-    return {
-      complete: false,
-      reason: `SWOT incomplete — ${missingSwot.join(', ')} empty. All 4 SWOT quadrants (strengths, weaknesses, opportunities, threats) must be filled.`,
-    };
-  }
+  if (missingSwot.length > 0) missing.push('swot');
 
-  if (issues.length >= 3) {
-    return { complete: false, reason: issues.slice(0, 3).join('; ') };
+  const incomplete = missing.includes('swot') || missing.length >= 3;
+  return {
+    complete: !incomplete,
+    reason: incomplete
+      ? missing.includes('swot')
+        ? `SWOT incomplete — ${missingSwot.join(', ')} empty. All 4 SWOT quadrants (strengths, weaknesses, opportunities, threats) must be filled.`
+        : missing.slice(0, 3).map(f => FIELD_LABELS[f] ?? f).join('; ')
+      : '',
+    missing,
+  };
+}
+
+// Fields the repair pass can re-request from the model. Each maps to its shape
+// in assessmentSchema; the repair schema is built dynamically from whichever of
+// these came back empty, so the repair call stays small.
+const REPAIRABLE_FIELDS: Record<string, any> = {
+  summary: { type: Type.STRING },
+  detailedReport: { type: Type.STRING },
+  tags: { type: Type.ARRAY, items: { type: Type.STRING } },
+  timeline: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, description: { type: Type.STRING }, year: { type: Type.STRING } } } },
+  hirabilityRoles: { type: Type.ARRAY, items: { type: Type.STRING } },
+  swot: { type: Type.OBJECT, properties: { strengths: { type: Type.ARRAY, items: { type: Type.STRING } }, weaknesses: { type: Type.ARRAY, items: { type: Type.STRING } }, opportunities: { type: Type.ARRAY, items: { type: Type.STRING } }, threats: { type: Type.ARRAY, items: { type: Type.STRING } } } },
+  repoAssessments: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { repoName: { type: Type.STRING }, repoScore: { type: Type.NUMBER }, repoVerdict: { type: Type.STRING }, repoAnalysis: { type: Type.STRING }, keyHighlights: { type: Type.ARRAY, items: { type: Type.STRING } }, redFlags: { type: Type.ARRAY, items: { type: Type.STRING } } } } },
+};
+
+function buildRepairSchema(missing: string[]): any {
+  const properties: Record<string, any> = {};
+  for (const key of missing) {
+    if (REPAIRABLE_FIELDS[key]) properties[key] = REPAIRABLE_FIELDS[key];
   }
-  return { complete: true, reason: '' };
+  return { type: Type.OBJECT, properties, required: Object.keys(properties) };
+}
+
+function buildRepairPrompt(data: UserAssessmentData, partial: AssessmentResult, missing: string[]): string {
+  const userJson = JSON.stringify({
+    profile: {
+      name: data.name, username: data.username, bio: data.bio,
+      followers: data.followers, following: data.following, publicRepos: data.publicRepos,
+      createdAt: data.createdAt, totalStars: data.totalStars, totalMergedPRs: data.totalPrs,
+    },
+    topLanguages: data.languages,
+    recentRepos: data.repos.slice(0, 15).map(r => ({
+      name: r.name, description: r.description, stars: r.stars, forks: r.forks,
+      language: r.language, isFork: r.isFork, hasReadme: r.hasReadme,
+    })),
+  }, null, 2);
+
+  const partialJson = JSON.stringify({
+    summary: partial.summary,
+    tags: partial.tags,
+    swot: partial.swot,
+    metrics: partial.metrics,
+    weaknessMetrics: partial.weaknessMetrics,
+    slopeAnalysis: partial.slopeAnalysis,
+    buzzwordAnalysis: partial.buzzwordAnalysis,
+    behavioralAnalysis: partial.behavioralAnalysis,
+    hirabilityScore: partial.hirabilityScore,
+    timeline: partial.timeline,
+    repoAssessments: (partial.repoAssessments || []).map(r => ({ repoName: r.repoName, repoScore: r.repoScore, repoVerdict: r.repoVerdict })),
+  }, null, 2);
+
+  return `A GitHub assessment was generated, but these sections came back EMPTY and must be filled in: ${missing.join(', ')}.
+
+## DEVELOPER PROFILE
+${userJson}
+
+## PARTIAL ASSESSMENT (everything else — DO NOT CHANGE IT, DO NOT CONTRADICT IT)
+${partialJson}
+
+## INSTRUCTIONS
+1. Provide ONLY the missing sections listed above — nothing else, no extra keys.
+2. Each section must be complete and match the rest of the assessment's tone (roast style, brutally honest, specific — name actual repos, PRs, and stats).
+3. For arrays, provide every entry needed to make the section complete (e.g. the full timeline; all four SWOT quadrants with 2-3 bullets each; all non-fork repos in repoAssessments with repoName, repoScore, repoVerdict, and analysis).
+4. Never change or contradict anything in the partial assessment.
+
+Output ONLY valid JSON with exactly these keys: ${missing.join(', ')}. No markdown wrappers. No preamble.`;
+}
+
+function mergeRepairedFields(partial: AssessmentResult, repair: any): AssessmentResult {
+  const merged: AssessmentResult = { ...partial, swot: { ...partial.swot }, repoAssessments: [...partial.repoAssessments] };
+  if (typeof repair.summary === 'string' && repair.summary.trim().length >= 20) merged.summary = repair.summary.trim();
+  if (typeof repair.detailedReport === 'string' && repair.detailedReport.trim().length >= 200) merged.detailedReport = repair.detailedReport.trim();
+  if (Array.isArray(repair.tags) && repair.tags.length > 0) merged.tags = repair.tags;
+  if (Array.isArray(repair.timeline) && repair.timeline.length > 0) merged.timeline = repair.timeline;
+  if (Array.isArray(repair.hirabilityRoles) && repair.hirabilityRoles.length > 0) merged.hirabilityRoles = repair.hirabilityRoles;
+  if (repair.swot && typeof repair.swot === 'object') {
+    for (const q of ['strengths', 'weaknesses', 'opportunities', 'threats'] as const) {
+      if (Array.isArray(repair.swot[q]) && repair.swot[q].length > 0) merged.swot[q] = repair.swot[q];
+    }
+  }
+  if (Array.isArray(repair.repoAssessments) && repair.repoAssessments.length > 0) {
+    // Merge by repo name so the repair fills gaps without clobbering repos
+    // that already came back with a full assessment.
+    const byName = new Map<string, any>(merged.repoAssessments.map(r => [r.repoName, r]));
+    for (const r of repair.repoAssessments) {
+      if (r && typeof r.repoName === 'string' && r.repoName) byName.set(r.repoName, r);
+    }
+    merged.repoAssessments = Array.from(byName.values());
+  }
+  return merged;
+}
+
+// One small follow-up call that fills ONLY the sections that came back empty.
+// Returns null on any failure (unparseable, echoed input, provider error) so
+// the caller can fall back to the partial assessment instead of erroring out.
+async function repairMissingSections(
+  data: UserAssessmentData,
+  settings: AppSettings,
+  partial: AssessmentResult,
+  missing: string[]
+): Promise<AssessmentResult | null> {
+  if (missing.length === 0) return null;
+  try {
+    const rawResponse = await callAI(settings, REPAIR_SYSTEM_PROMPT, buildRepairPrompt(data, partial, missing), 'repair', buildRepairSchema(missing));
+    const cleaned = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(cleaned);
+    if (parsed.profile || parsed.topLanguages || parsed.recentRepos) return null;
+    return mergeRepairedFields(partial, parsed);
+  } catch {
+    return null;
+  }
 }
 
 function normalizeAssessment(raw: any): AssessmentResult {
