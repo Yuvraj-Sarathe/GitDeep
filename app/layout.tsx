@@ -24,6 +24,9 @@ export const metadata: Metadata = {
   icons: {
     icon: '/icon.png',
   },
+  verification: {
+    google: 'sbdgfUEQO41DX_xxfiTuMl0XG07x7bYNM0undt5-1XI',
+  },
 };
 
 export const viewport = {
