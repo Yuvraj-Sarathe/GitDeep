@@ -153,7 +153,7 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 - GitHub API for data access
 - Google Gemini for free-tier AI capabilities
 - Ollama for local model integration
-- Next.js and Vercel for web infrastructure
+- Next.js and Vercel for web infra
 
 ---
 
