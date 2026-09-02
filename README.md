@@ -145,6 +145,7 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 <td align="center"><a href="https://github.com/bharat-mewada-ai"><img src="https://avatars.githubusercontent.com/u/250170988?s=80" width="80" style="border-radius:50%" alt="bharat-mewada-ai"><br><sub><b>bharat-mewada-ai</b></sub></a></td>
 <td align="center"><a href="https://github.com/preranaanand07"><img src="https://avatars.githubusercontent.com/u/241425799?s=80" width="80" style="border-radius:50%" alt="preranaanand07"><br><sub><b>preranaanand07</b></sub></a></td>
 <td align="center"><a href="https://github.com/Rudrx17"><img src="https://avatars.githubusercontent.com/u/185841328?s=80" width="80" style="border-radius:50%" alt="Rudrx17"><br><sub><b>Rudrx17</b></sub></a></td>
+<td align="center"><a href="https://github.com/bysneh"><img src="https://avatars.githubusercontent.com/u/273966383?s=80" width="80" style="border-radius:50%" alt="bysneh"><br><sub><b>bysneh</b></sub></a></td>
 </tr>
 </table>
 
