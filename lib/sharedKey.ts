@@ -1,6 +1,6 @@
 // GitDeep shared Gemini keys — unlocked by starring the repository.
 // NOTE: the keys themselves live SERVER-ONLY (lib/sharedKeyServer.ts, env vars
-// SHARED_GEMINI_KEY_1..3) and are proxied through /api/gemini-shared. This
+// SHARED_GEMINI_KEY_1..5) and are proxied through /api/gemini-shared. This
 // client module holds NO key material — only the soft star gate and a local
 // session budget that gives instant "wait a minute" feedback. The real per-key
 // budgets are enforced server-side; this is a good-faith gate, not security.

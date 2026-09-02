@@ -13,6 +13,8 @@ function collectSharedKeys(): string[] {
     process.env.SHARED_GEMINI_KEY_1,
     process.env.SHARED_GEMINI_KEY_2,
     process.env.SHARED_GEMINI_KEY_3,
+    process.env.SHARED_GEMINI_KEY_4,
+    process.env.SHARED_GEMINI_KEY_5,
   ];
   const keys = slots.filter((k): k is string => !!k && k.trim() !== '');
   if (keys.length === 0) {

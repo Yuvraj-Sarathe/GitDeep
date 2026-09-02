@@ -4,7 +4,7 @@ import { runSharedGemini } from '@/lib/sharedKeyServer';
 export const maxDuration = 180;
 
 // Server-only proxy for the GitDeep Free Key. The shared Gemini keys live in
-// server-only env vars (SHARED_GEMINI_KEY_1..3) and never reach the client
+// server-only env vars (SHARED_GEMINI_KEY_1..5) and never reach the client
 // bundle. Per-key budgets in sharedKeyServer.ts cap what this public endpoint
 // can burn, so even an attacker hammering it directly can't exhaust more than
 // the pool's own limits — and can never extract a key.
